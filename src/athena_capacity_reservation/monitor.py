@@ -1,5 +1,6 @@
 """Monitor loop, autoscaling, and daemon for athena_capacity_reservation."""
 
+from __future__ import annotations
 
 import logging
 import os
@@ -11,13 +12,15 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import FrameType
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import boto3
 from botocore.exceptions import ClientError
-from mypy_boto3_athena import AthenaClient
-from mypy_boto3_athena.type_defs import ListQueryExecutionsInputTypeDef
-from mypy_boto3_cloudwatch import CloudWatchClient
+
+if TYPE_CHECKING:
+    from mypy_boto3_athena import AthenaClient
+    from mypy_boto3_athena.type_defs import ListQueryExecutionsInputTypeDef
+    from mypy_boto3_cloudwatch import CloudWatchClient
 
 from athena_capacity_reservation.constants import COLOR_SCALE
 from athena_capacity_reservation.slack import post_slack_message

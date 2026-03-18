@@ -1,6 +1,5 @@
 """Athena API operations for athena_capacity_reservation."""
 
-
 import logging
 import time
 from typing import Literal

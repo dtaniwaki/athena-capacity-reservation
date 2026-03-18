@@ -40,6 +40,7 @@ class SuggestGroup(click.Group):
                     e.message += f"\n\nDid you mean one of these?\n    {suggestion}"
             raise
 
+
 POSITIVE_INT = click.IntRange(min=1)
 THRESHOLD_FLOAT = click.FloatRange(min=0, max=100, min_open=True, max_open=True)
 
@@ -48,11 +49,13 @@ THRESHOLD_FLOAT = click.FloatRange(min=0, max=100, min_open=True, max_open=True)
 # Reusable option decorator bundles
 # ---------------------------------------------------------------------------
 
+
 def _compose(*decorators: Callable[..., Any]) -> Callable[..., Any]:
     def wrapper(func: Any) -> Any:
         for dec in reversed(decorators):
             func = dec(func)
         return func
+
     return wrapper
 
 
@@ -62,6 +65,7 @@ def reservation_options(func: Any) -> Any:
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         return func(*args, **kwargs)
+
     return wrapper
 
 
@@ -71,6 +75,7 @@ def activate_options(func: Any) -> Any:
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         return func(*args, **kwargs)
+
     return wrapper
 
 
@@ -86,6 +91,7 @@ def state_file_option(func: Any) -> Any:
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         return func(*args, **kwargs)
+
     return wrapper
 
 
@@ -101,44 +107,82 @@ def pid_file_option(func: Any) -> Any:
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         return func(*args, **kwargs)
+
     return wrapper
 
 
 def daemon_options(func: Any) -> Any:
     @click.option(
-        "--daemon", is_flag=True, default=False,
+        "--daemon",
+        is_flag=True,
+        default=False,
         help="Fork into background and return immediately. Requires --log-file.",
     )
     @click.option(
-        "--log-file", default=None, metavar="FILE",
+        "--log-file",
+        default=None,
+        metavar="FILE",
         help="Path to log file. Required when using --daemon.",
     )
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         return func(*args, **kwargs)
+
     return wrapper
 
 
 def monitor_options(func: Any) -> Any:
     @click.option("--min-dpus", default=None, type=POSITIVE_INT, metavar="N", help="Scale-in lower bound")
     @click.option("--max-dpus", default=None, type=POSITIVE_INT, metavar="N", help="Scale-out upper bound")
-    @click.option("--scale-step-dpus", default=None, type=POSITIVE_INT, metavar="N",
-                  help="DPU step per scale event (default: 8)")
-    @click.option("--scale-out-threshold", default=None, type=THRESHOLD_FLOAT, metavar="PCT",
-                  help="Utilization %% to trigger scale-out (default: 80)")
-    @click.option("--scale-in-threshold", default=None, type=THRESHOLD_FLOAT, metavar="PCT",
-                  help="Utilization %% to trigger scale-in (default: 30)")
-    @click.option("--monitor-interval", default=None, type=POSITIVE_INT, metavar="SEC",
-                  help="Poll interval in seconds (default: 60)")
-    @click.option("--cooldown-seconds", default=None, type=POSITIVE_INT, metavar="SEC",
-                  help="Min seconds between scale events (default: 300)")
-    @click.option("--queued-ticks-for-scale-out", default=None, type=POSITIVE_INT, metavar="N",
-                  help="Consecutive ticks with queued queries before scale-out (default: 2)")
-    @click.option("--low-ticks-for-scale-in", default=None, type=POSITIVE_INT, metavar="N",
-                  help="Consecutive ticks below scale-in threshold before scale-in (default: 2)")
+    @click.option(
+        "--scale-step-dpus", default=None, type=POSITIVE_INT, metavar="N", help="DPU step per scale event (default: 8)"
+    )
+    @click.option(
+        "--scale-out-threshold",
+        default=None,
+        type=THRESHOLD_FLOAT,
+        metavar="PCT",
+        help="Utilization %% to trigger scale-out (default: 80)",
+    )
+    @click.option(
+        "--scale-in-threshold",
+        default=None,
+        type=THRESHOLD_FLOAT,
+        metavar="PCT",
+        help="Utilization %% to trigger scale-in (default: 30)",
+    )
+    @click.option(
+        "--monitor-interval",
+        default=None,
+        type=POSITIVE_INT,
+        metavar="SEC",
+        help="Poll interval in seconds (default: 60)",
+    )
+    @click.option(
+        "--cooldown-seconds",
+        default=None,
+        type=POSITIVE_INT,
+        metavar="SEC",
+        help="Min seconds between scale events (default: 300)",
+    )
+    @click.option(
+        "--queued-ticks-for-scale-out",
+        default=None,
+        type=POSITIVE_INT,
+        metavar="N",
+        help="Consecutive ticks with queued queries before scale-out (default: 2)",
+    )
+    @click.option(
+        "--low-ticks-for-scale-in",
+        default=None,
+        type=POSITIVE_INT,
+        metavar="N",
+        help="Consecutive ticks below scale-in threshold before scale-in (default: 2)",
+    )
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         return func(*args, **kwargs)
+
     return wrapper
 
 
@@ -185,6 +229,7 @@ def _build_settings(kwargs: dict[str, Any]) -> Settings:
 # Logging
 # ---------------------------------------------------------------------------
 
+
 def _setup_logging(log_file: Path | None = None, log_level: str = "INFO") -> None:
     handler: logging.Handler
     if log_file:
@@ -201,10 +246,12 @@ def _setup_logging(log_file: Path | None = None, log_level: str = "INFO") -> Non
 # CLI
 # ---------------------------------------------------------------------------
 
+
 @click.group(cls=SuggestGroup)
 @click.version_option(version=version("athena-capacity-reservation"), prog_name="athena-capacity-reservation")
 @click.option(
-    "--log-level", default="INFO",
+    "--log-level",
+    default="INFO",
     type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False),
     help="Set the logging level (default: INFO)",
 )

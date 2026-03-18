@@ -1,6 +1,5 @@
 """Slack helpers for athena_capacity_reservation."""
 
-
 import json
 import logging
 from pathlib import Path
