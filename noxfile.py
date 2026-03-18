@@ -10,7 +10,12 @@ nox.options.default_venv_backend = "uv"
 @nox.session(python=PYTHON_VERSIONS)
 def test(session: nox.Session) -> None:
     session.install("-e", ".[dev,slack]")
-    session.run("pytest", "--cov=athena_capacity_reservation", "--cov-report=term-missing")
+    session.run(
+        "pytest",
+        "--cov=athena_capacity_reservation",
+        "--cov-report=term-missing",
+        "--cov-report=markdown:coverage.md",
+    )
 
 
 @nox.session(python=PYTHON_VERSIONS[-1])

@@ -16,6 +16,13 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - name: Run tests
         run: uv run --extra dev nox -s test-${{ matrix.python-version }}
+      - name: Coverage summary
+        if: always()
+        run: |
+          if [ -f coverage.md ]; then
+            echo "## Coverage (Python ${{ matrix.python-version }})" >> "$GITHUB_STEP_SUMMARY"
+            cat coverage.md >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   lint:
     runs-on: ubuntu-24.04
