@@ -64,6 +64,10 @@ phases:
 
 See [docs/architecture.md](docs/architecture.md) for detailed sequence diagrams.
 
+## Fallback Strategies
+
+See [docs/fallback.md](docs/fallback.md) for recommended cleanup patterns to prevent orphaned reservations.
+
 ## Configuration
 
 ### Required environment variables
