@@ -1,0 +1,56 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "athena-capacity-reservation"
+version = "0.0.1"
+description = "Athena Capacity Reservation management and autoscale monitor"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+dependencies = [
+    "boto3>=1.26",
+    "pydantic-settings>=2.0",
+]
+
+[project.optional-dependencies]
+slack = ["slack-sdk>=3.0"]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+    "boto3-stubs[athena,cloudwatch,s3]",
+    "mypy>=1.0",
+    "ruff",
+    "bandit",
+    "pip-audit",
+    "nox",
+    "athena-capacity-reservation[slack]",
+]
+
+[project.scripts]
+athena-capacity-reservation = "athena_capacity_reservation:main"
+
+[project.urls]
+Homepage = "https://github.com/dtaniwaki/athena-capacity-reservation"
+Repository = "https://github.com/dtaniwaki/athena-capacity-reservation"
+Issues = "https://github.com/dtaniwaki/athena-capacity-reservation/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/athena_capacity_reservation"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src"]
