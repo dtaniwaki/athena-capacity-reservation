@@ -11,22 +11,6 @@ from typing import Any
 
 import click
 
-
-class SuggestGroup(click.Group):
-    """click.Group subclass that suggests similar command names on typo."""
-
-    def resolve_command(self, ctx: click.Context, args: list[str]) -> tuple[str | None, click.Command | None, list[str]]:
-        try:
-            return super().resolve_command(ctx, args)
-        except click.UsageError as e:
-            cmd_name = args[0] if args else None
-            if cmd_name is not None:
-                matches = difflib.get_close_matches(cmd_name, self.list_commands(ctx), n=3, cutoff=0.6)
-                if matches:
-                    suggestion = ", ".join(matches)
-                    e.message += f"\n\nDid you mean one of these?\n    {suggestion}"
-            raise
-
 from athena_capacity_reservation.commands import (
     MonitorStopError,
     cmd_activate,
@@ -37,6 +21,24 @@ from athena_capacity_reservation.commands import (
     cmd_stop,
 )
 from athena_capacity_reservation.settings import Settings
+
+
+class SuggestGroup(click.Group):
+    """click.Group subclass that suggests similar command names on typo."""
+
+    def resolve_command(
+        self, ctx: click.Context, args: list[str]
+    ) -> tuple[str | None, click.Command | None, list[str]]:
+        try:
+            return super().resolve_command(ctx, args)
+        except click.UsageError as e:
+            cmd_name = args[0] if args else None
+            if cmd_name is not None:
+                matches = difflib.get_close_matches(cmd_name, self.list_commands(ctx), n=3, cutoff=0.6)
+                if matches:
+                    suggestion = ", ".join(matches)
+                    e.message += f"\n\nDid you mean one of these?\n    {suggestion}"
+            raise
 
 POSITIVE_INT = click.IntRange(min=1)
 THRESHOLD_FLOAT = click.FloatRange(min=0, max=100, min_open=True, max_open=True)
@@ -219,7 +221,7 @@ def main(ctx: click.Context, log_level: str) -> None:
 @activate_options
 @state_file_option
 @click.pass_context
-def activate(ctx: click.Context, **kwargs: Any) -> None:
+def activate(ctx: click.Context, /, **kwargs: Any) -> None:
     """Activate the Athena Capacity Reservation."""
     settings = _build_settings(kwargs)
     cmd_activate(settings)
@@ -229,7 +231,7 @@ def activate(ctx: click.Context, **kwargs: Any) -> None:
 @reservation_options
 @state_file_option
 @click.pass_context
-def deactivate(ctx: click.Context, **kwargs: Any) -> None:
+def deactivate(ctx: click.Context, /, **kwargs: Any) -> None:
     """Deactivate the Athena Capacity Reservation."""
     settings = _build_settings(kwargs)
     cmd_deactivate(settings)
@@ -247,7 +249,7 @@ def monitor() -> None:
 @daemon_options
 @monitor_options
 @click.pass_context
-def monitor_start(ctx: click.Context, **kwargs: Any) -> None:
+def monitor_start(ctx: click.Context, /, **kwargs: Any) -> None:
     """Run the autoscale monitor loop only (no activate/deactivate)."""
     daemon = kwargs.pop("daemon", False)
     log_file_str = kwargs.pop("log_file", None)
@@ -270,7 +272,7 @@ def monitor_start(ctx: click.Context, **kwargs: Any) -> None:
 @monitor.command("stop")
 @pid_file_option
 @click.pass_context
-def monitor_stop(ctx: click.Context, **kwargs: Any) -> None:
+def monitor_stop(ctx: click.Context, /, **kwargs: Any) -> None:
     """Stop the background monitor via PID file (no deactivate)."""
     settings = _build_settings(kwargs)
     try:
@@ -288,7 +290,7 @@ def monitor_stop(ctx: click.Context, **kwargs: Any) -> None:
 @daemon_options
 @monitor_options
 @click.pass_context
-def start(ctx: click.Context, **kwargs: Any) -> None:
+def start(ctx: click.Context, /, **kwargs: Any) -> None:
     """Activate reservation, then start the autoscale monitor (shortcut)."""
     daemon = kwargs.pop("daemon", False)
     log_file_str = kwargs.pop("log_file", None)
@@ -313,7 +315,7 @@ def start(ctx: click.Context, **kwargs: Any) -> None:
 @state_file_option
 @pid_file_option
 @click.pass_context
-def stop(ctx: click.Context, **kwargs: Any) -> None:
+def stop(ctx: click.Context, /, **kwargs: Any) -> None:
     """Stop the background monitor, then deactivate the reservation (shortcut)."""
     settings = _build_settings(kwargs)
     try:
