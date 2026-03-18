@@ -11,6 +11,7 @@ license = { file = "LICENSE" }
 requires-python = ">=3.11"
 dependencies = [
     "boto3>=1.26",
+    "click>=8.0",
     "pydantic-settings>=2.0",
 ]
 
