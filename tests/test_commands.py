@@ -27,10 +27,9 @@ from athena_capacity_reservation.settings import Settings
 def test_cmd_activate_direct_failure_raises(
     mock_slack: MagicMock,
     mock_direct: MagicMock,
-    tmp_path: Path,
 ) -> None:
     mock_direct.side_effect = RuntimeError("API error")
-    s = _settings(slack_state_file=tmp_path / "state.json")
+    s = _settings()
 
     with pytest.raises(RuntimeError, match="API error"):
         cmd_activate(s)
@@ -39,20 +38,20 @@ def test_cmd_activate_direct_failure_raises(
     assert "\u26a0\ufe0f" in mock_slack.call_args[0][0]
 
 
-def test_cmd_activate_errors_when_no_reservation_name(tmp_path: Path) -> None:
-    s = _settings(reservation_name=None, slack_state_file=tmp_path / "state.json")
+def test_cmd_activate_errors_when_no_reservation_name() -> None:
+    s = _settings(reservation_name=None)
     with pytest.raises(RuntimeError, match="reservation_name"):
         cmd_activate(s)
 
 
-def test_cmd_activate_errors_when_no_dpus(tmp_path: Path) -> None:
-    s = _settings(dpus=None, min_dpus=None, max_dpus=None, slack_state_file=tmp_path / "state.json")
+def test_cmd_activate_errors_when_no_dpus() -> None:
+    s = _settings(dpus=None, min_dpus=None, max_dpus=None)
     with pytest.raises(RuntimeError, match="dpus is not set"):
         cmd_activate(s)
 
 
-def test_cmd_activate_errors_when_no_workgroup_names(tmp_path: Path) -> None:
-    s = _settings(workgroup_names=[], slack_state_file=tmp_path / "state.json")
+def test_cmd_activate_errors_when_no_workgroup_names() -> None:
+    s = _settings(workgroup_names=[])
     with pytest.raises(RuntimeError, match="workgroup_names"):
         cmd_activate(s)
 
@@ -64,11 +63,10 @@ def test_cmd_activate_direct_success_lambda_not_called(
     mock_slack: MagicMock,
     mock_poll: MagicMock,
     mock_direct: MagicMock,
-    tmp_path: Path,
 ) -> None:
     mock_direct.return_value = None
     mock_poll.return_value = None
-    s = _settings(dpus=4, slack_state_file=tmp_path / "state.json")
+    s = _settings(dpus=4)
 
     cmd_activate(s)
 
@@ -85,11 +83,10 @@ def test_cmd_activate_timeout_sends_slack_and_raises(
     mock_slack: MagicMock,
     mock_poll: MagicMock,
     mock_direct: MagicMock,
-    tmp_path: Path,
 ) -> None:
     mock_direct.return_value = None
     mock_poll.side_effect = TimeoutError("Timed out")
-    s = _settings(dpus=4, slack_state_file=tmp_path / "state.json")
+    s = _settings(dpus=4)
 
     with pytest.raises(TimeoutError):
         cmd_activate(s)
@@ -109,10 +106,9 @@ def test_cmd_activate_timeout_sends_slack_and_raises(
 def test_cmd_deactivate_direct_success_lambda_not_called(
     mock_slack: MagicMock,
     mock_direct: MagicMock,
-    tmp_path: Path,
 ) -> None:
     mock_direct.return_value = "cancelled"
-    s = _settings(slack_state_file=tmp_path / "state.json")
+    s = _settings()
 
     cmd_deactivate(s)
 
@@ -126,10 +122,9 @@ def test_cmd_deactivate_direct_success_lambda_not_called(
 def test_cmd_deactivate_direct_failure_raises(
     mock_slack: MagicMock,
     mock_direct: MagicMock,
-    tmp_path: Path,
 ) -> None:
     mock_direct.side_effect = RuntimeError("API error")
-    s = _settings(slack_state_file=tmp_path / "state.json")
+    s = _settings()
 
     with pytest.raises(RuntimeError, match="API error"):
         cmd_deactivate(s)
@@ -143,10 +138,9 @@ def test_cmd_deactivate_direct_failure_raises(
 def test_cmd_deactivate_update_pending_timeout_skips(
     mock_slack: MagicMock,
     mock_direct: MagicMock,
-    tmp_path: Path,
 ) -> None:
     mock_direct.return_value = "update_pending_timeout"
-    s = _settings(slack_state_file=tmp_path / "state.json")
+    s = _settings()
 
     cmd_deactivate(s)
 
@@ -156,8 +150,8 @@ def test_cmd_deactivate_update_pending_timeout_skips(
     assert "UPDATE_PENDING" in msg_text
 
 
-def test_cmd_deactivate_errors_when_no_reservation_name(tmp_path: Path) -> None:
-    s = _settings(reservation_name=None, slack_state_file=tmp_path / "state.json")
+def test_cmd_deactivate_errors_when_no_reservation_name() -> None:
+    s = _settings(reservation_name=None)
     with pytest.raises(RuntimeError, match="reservation_name"):
         cmd_deactivate(s)
 
@@ -167,8 +161,8 @@ def test_cmd_deactivate_errors_when_no_reservation_name(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_cmd_monitor_start_errors_if_reservation_name_missing(tmp_path: Path) -> None:
-    s = Settings(dpus=8, slack_state_file=tmp_path / "state.json")
+def test_cmd_monitor_start_errors_if_reservation_name_missing() -> None:
+    s = Settings(dpus=8)
     with pytest.raises(RuntimeError, match="reservation_name"):
         cmd_monitor_start(s)
 
@@ -178,7 +172,6 @@ def test_cmd_monitor_start_derives_dpus_from_defaults(tmp_path: Path) -> None:
         reservation_name="my-res",
         dpus=4,
         max_dpus=16,
-        slack_state_file=tmp_path / "state.json",
         capacity_pid_file=tmp_path / "monitor.pid",
     )
     with patch("athena_capacity_reservation.commands._run_monitor_loop") as mock_loop:
@@ -238,7 +231,7 @@ def test_cmd_monitor_stop_invalid_pid_file(tmp_path: Path) -> None:
 
 
 def test_cmd_start_errors_if_reservation_name_missing(tmp_path: Path) -> None:
-    s = Settings(dpus=8, slack_state_file=tmp_path / "state.json", capacity_pid_file=tmp_path / "monitor.pid")
+    s = Settings(dpus=8, capacity_pid_file=tmp_path / "monitor.pid")
     with (
         patch("athena_capacity_reservation.commands.cmd_activate") as mock_activate,
     ):
@@ -252,7 +245,6 @@ def test_cmd_start_derives_dpus_from_defaults(tmp_path: Path) -> None:
         reservation_name="my-res",
         dpus=4,
         max_dpus=16,
-        slack_state_file=tmp_path / "state.json",
         capacity_pid_file=tmp_path / "monitor.pid",
     )
     with (
@@ -265,7 +257,7 @@ def test_cmd_start_derives_dpus_from_defaults(tmp_path: Path) -> None:
 
 
 def test_cmd_start_calls_activate_then_monitors_without_daemon(tmp_path: Path) -> None:
-    s = _settings(slack_state_file=tmp_path / "state.json", capacity_pid_file=tmp_path / "monitor.pid")
+    s = _settings(capacity_pid_file=tmp_path / "monitor.pid")
     with (
         patch("athena_capacity_reservation.commands.cmd_activate") as mock_activate,
         patch("athena_capacity_reservation.commands._run_monitor_loop") as mock_monitor,
@@ -279,7 +271,7 @@ def test_cmd_start_calls_activate_then_monitors_without_daemon(tmp_path: Path) -
 
 
 def test_cmd_start_calls_activate_then_forks_and_monitors_with_daemon(tmp_path: Path) -> None:
-    s = _settings(slack_state_file=tmp_path / "state.json", capacity_pid_file=tmp_path / "monitor.pid")
+    s = _settings(capacity_pid_file=tmp_path / "monitor.pid")
     with (
         patch("athena_capacity_reservation.commands.cmd_activate") as mock_activate,
         patch("athena_capacity_reservation.commands._run_monitor_loop") as mock_monitor,
@@ -299,9 +291,8 @@ def test_cmd_start_calls_activate_then_forks_and_monitors_with_daemon(tmp_path: 
 
 def test_cmd_stop_sends_sigterm_then_deactivates(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:  # type: ignore[type-arg]
     pid_file = tmp_path / "monitor.pid"
-    state_file = tmp_path / "state.json"
     pid_file.write_text("12345")
-    s = _settings(slack_state_file=state_file, capacity_pid_file=pid_file)
+    s = _settings(capacity_pid_file=pid_file)
     with (
         patch("os.kill") as mock_kill,
         patch("athena_capacity_reservation.commands.cmd_deactivate") as mock_deactivate,
@@ -318,8 +309,7 @@ def test_cmd_stop_sends_sigterm_then_deactivates(tmp_path: Path, capsys: pytest.
 
 def test_cmd_stop_no_pid_file_still_deactivates(tmp_path: Path) -> None:
     pid_file = tmp_path / "monitor.pid"
-    state_file = tmp_path / "state.json"
-    s = _settings(slack_state_file=state_file, capacity_pid_file=pid_file)
+    s = _settings(capacity_pid_file=pid_file)
     with patch("athena_capacity_reservation.commands.cmd_deactivate") as mock_deactivate:
         cmd_stop(s)
         mock_deactivate.assert_called_once_with(s)
@@ -327,9 +317,8 @@ def test_cmd_stop_no_pid_file_still_deactivates(tmp_path: Path) -> None:
 
 def test_cmd_stop_process_already_gone_still_deactivates(tmp_path: Path) -> None:
     pid_file = tmp_path / "monitor.pid"
-    state_file = tmp_path / "state.json"
     pid_file.write_text("99999")
-    s = _settings(slack_state_file=state_file, capacity_pid_file=pid_file)
+    s = _settings(capacity_pid_file=pid_file)
     with (
         patch("os.kill", side_effect=ProcessLookupError),
         patch("athena_capacity_reservation.commands.cmd_deactivate") as mock_deactivate,
@@ -340,9 +329,8 @@ def test_cmd_stop_process_already_gone_still_deactivates(tmp_path: Path) -> None
 
 def test_cmd_stop_process_already_gone_deactivate_fails(tmp_path: Path) -> None:
     pid_file = tmp_path / "monitor.pid"
-    state_file = tmp_path / "state.json"
     pid_file.write_text("99999")
-    s = _settings(slack_state_file=state_file, capacity_pid_file=pid_file)
+    s = _settings(capacity_pid_file=pid_file)
     with (
         patch("os.kill", side_effect=ProcessLookupError),
         patch("athena_capacity_reservation.commands.cmd_deactivate", side_effect=RuntimeError("fail")),
@@ -353,9 +341,8 @@ def test_cmd_stop_process_already_gone_deactivate_fails(tmp_path: Path) -> None:
 
 def test_cmd_stop_kill_oserror_still_deactivates(tmp_path: Path) -> None:
     pid_file = tmp_path / "monitor.pid"
-    state_file = tmp_path / "state.json"
     pid_file.write_text("99999")
-    s = _settings(slack_state_file=state_file, capacity_pid_file=pid_file)
+    s = _settings(capacity_pid_file=pid_file)
     with (
         patch("os.kill", side_effect=OSError("permission denied")),
         patch("athena_capacity_reservation.commands.cmd_deactivate") as mock_deactivate,
@@ -366,9 +353,8 @@ def test_cmd_stop_kill_oserror_still_deactivates(tmp_path: Path) -> None:
 
 def test_cmd_stop_invalid_pid_file_still_deactivates(tmp_path: Path) -> None:
     pid_file = tmp_path / "monitor.pid"
-    state_file = tmp_path / "state.json"
     pid_file.write_text("not-a-pid")
-    s = _settings(slack_state_file=state_file, capacity_pid_file=pid_file)
+    s = _settings(capacity_pid_file=pid_file)
     with patch("athena_capacity_reservation.commands.cmd_deactivate") as mock_deactivate:
         cmd_stop(s)
     mock_deactivate.assert_called_once_with(s)
@@ -376,9 +362,8 @@ def test_cmd_stop_invalid_pid_file_still_deactivates(tmp_path: Path) -> None:
 
 def test_cmd_stop_invalid_pid_file_deactivate_also_fails(tmp_path: Path) -> None:
     pid_file = tmp_path / "monitor.pid"
-    state_file = tmp_path / "state.json"
     pid_file.write_text("not-a-pid")
-    s = _settings(slack_state_file=state_file, capacity_pid_file=pid_file)
+    s = _settings(capacity_pid_file=pid_file)
     with (
         patch("athena_capacity_reservation.commands.cmd_deactivate", side_effect=RuntimeError("fail")),
         pytest.raises(RuntimeError, match="Both monitor stop and deactivation failed"),

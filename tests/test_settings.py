@@ -166,12 +166,6 @@ def test_settings_slack_channel_prefixed_takes_priority(monkeypatch: pytest.Monk
     assert s.slack_channel == "C-prefixed"
 
 
-def test_settings_slack_state_file_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("ATHENA_CR_SLACK_STATE_FILE", "/custom/state.json")
-    s = Settings()
-    assert s.slack_state_file == Path("/custom/state.json")
-
-
 def test_settings_capacity_pid_file_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ATHENA_CR_CAPACITY_PID_FILE", "/custom/monitor.pid")
     s = Settings()

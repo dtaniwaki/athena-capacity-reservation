@@ -1,21 +1,15 @@
 """Tests for athena_capacity_reservation.slack."""
 
-from pathlib import Path
-
-from athena_capacity_reservation.slack import load_state
+from athena_capacity_reservation.slack import get_slack_client, post_slack_message
 
 
-def test_load_state_missing_file(tmp_path: Path) -> None:
-    assert load_state(tmp_path / "nonexistent.json") == {}
+def test_get_slack_client_returns_none_without_token() -> None:
+    assert get_slack_client(None) is None
 
 
-def test_load_state_valid(tmp_path: Path) -> None:
-    f = tmp_path / "state.json"
-    f.write_text('{"thread_ts": "123.456"}')
-    assert load_state(f) == {"thread_ts": "123.456"}
+def test_post_slack_message_returns_false_without_channel() -> None:
+    assert post_slack_message("msg", "#000000", slack_token="xoxb-test") is False
 
 
-def test_load_state_invalid_json(tmp_path: Path) -> None:
-    f = tmp_path / "state.json"
-    f.write_text("not json")
-    assert load_state(f) == {}
+def test_post_slack_message_returns_false_without_token() -> None:
+    assert post_slack_message("msg", "#000000", slack_channel="C123") is False

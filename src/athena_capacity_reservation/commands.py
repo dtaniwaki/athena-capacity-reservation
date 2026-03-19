@@ -34,9 +34,9 @@ def _post_slack(message: str, color: str, settings: Settings) -> bool:
     return post_slack_message(
         message,
         color,
-        settings.slack_state_file,
         slack_token=settings.slack_token,
         slack_channel=settings.slack_channel,
+        slack_thread_ts=settings.slack_thread_ts,
     )
 
 

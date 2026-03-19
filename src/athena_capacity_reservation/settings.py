@@ -53,9 +53,7 @@ class Settings(BaseSettings):
 
     slack_token: str | None = None
     slack_channel: str | None = None
-    slack_state_file: Path = Field(
-        default=Path(tempfile.gettempdir()) / "slack_state.json",
-    )
+    slack_thread_ts: str | None = None
     capacity_pid_file: Path = Field(
         default=Path(tempfile.gettempdir()) / "capacity_monitor.pid",
     )
@@ -89,6 +87,8 @@ class Settings(BaseSettings):
             self.slack_token = os.environ.get("SLACK_TOKEN")
         if self.slack_channel is None:
             self.slack_channel = os.environ.get("SLACK_CHANNEL")
+        if self.slack_thread_ts is None:
+            self.slack_thread_ts = os.environ.get("SLACK_THREAD_TS")
         return self
 
     @model_validator(mode="after")
@@ -134,7 +134,6 @@ class Settings(BaseSettings):
             reservation_name=self.reservation_name,
             min_dpus=self.min_dpus,
             max_dpus=self.max_dpus,
-            state_file=self.slack_state_file,
             scale_out_threshold=self.scale_out_threshold,
             scale_in_threshold=self.scale_in_threshold,
             scale_step_dpus=self.scale_step_dpus,
@@ -145,4 +144,5 @@ class Settings(BaseSettings):
             min_low_ticks=self.low_ticks_for_scale_in,
             slack_token=self.slack_token,
             slack_channel=self.slack_channel,
+            slack_thread_ts=self.slack_thread_ts,
         )

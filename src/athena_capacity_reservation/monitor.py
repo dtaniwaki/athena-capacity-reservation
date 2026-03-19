@@ -35,7 +35,6 @@ class _MonitorConfig:
     reservation_name: str
     min_dpus: int
     max_dpus: int
-    state_file: Path
     scale_out_threshold: float = 80.0
     scale_in_threshold: float = 30.0
     scale_step_dpus: int = 8
@@ -46,6 +45,7 @@ class _MonitorConfig:
     min_low_ticks: int = 2
     slack_token: str | None = None
     slack_channel: str | None = None
+    slack_thread_ts: str | None = None
 
 
 def _has_queued_queries(workgroup_names: list[str], *, athena_client: AthenaClient | None = None) -> bool | None:
@@ -316,9 +316,9 @@ def _check_and_scale(
     post_slack_message(
         scale_msg,
         COLOR_SCALE,
-        cfg.state_file,
         slack_token=cfg.slack_token,
         slack_channel=cfg.slack_channel,
+        slack_thread_ts=cfg.slack_thread_ts,
     )
     return time.time(), 0, 0
 

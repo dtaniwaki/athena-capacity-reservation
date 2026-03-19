@@ -21,7 +21,6 @@ def test_cmd_start_calls_build_monitor_config_then_activate_then_monitor(tmp_pat
         reservation_name="my-res",
         dpus=8,
         workgroup_names=["wg"],
-        slack_state_file=tmp_path / "state.json",
         capacity_pid_file=tmp_path / "monitor.pid",
     )
     call_order: list[str] = []
@@ -47,13 +46,11 @@ def test_cmd_stop_sends_sigterm_then_deactivates(tmp_path: Path) -> None:
     import signal
 
     pid_file = tmp_path / "monitor.pid"
-    state_file = tmp_path / "state.json"
     pid_file.write_text("12345")
 
     s = Settings(
         reservation_name="my-res",
         dpus=8,
-        slack_state_file=state_file,
         capacity_pid_file=pid_file,
     )
 
@@ -72,7 +69,6 @@ def test_cmd_start_raises_without_reservation_name_before_activate(tmp_path: Pat
     """cmd_start() raises RuntimeError without activating when reservation_name is not set."""
     s = Settings(
         dpus=8,
-        slack_state_file=tmp_path / "state.json",
         capacity_pid_file=tmp_path / "monitor.pid",
     )
 
@@ -90,14 +86,12 @@ def test_cmd_start_raises_without_reservation_name_before_activate(tmp_path: Pat
 # ---------------------------------------------------------------------------
 
 
-def test_monitor_loop_starts_and_stops_via_stop_event(tmp_path: Path) -> None:
-    state_file = tmp_path / "state.json"
+def test_monitor_loop_starts_and_stops_via_stop_event() -> None:
     cfg = _MonitorConfig(
         reservation_name="res",
         min_dpus=8,
         max_dpus=8,
         monitor_interval_seconds=60,
-        state_file=state_file,
     )
     stop_event = threading.Event()
 
@@ -119,14 +113,12 @@ def test_monitor_loop_starts_and_stops_via_stop_event(tmp_path: Path) -> None:
     assert not thread.is_alive()
 
 
-def test_monitor_loop_runs_check_and_scale_then_stops(tmp_path: Path) -> None:
-    state_file = tmp_path / "state.json"
+def test_monitor_loop_runs_check_and_scale_then_stops() -> None:
     cfg = _MonitorConfig(
         reservation_name="res",
         min_dpus=8,
         max_dpus=8,
         monitor_interval_seconds=0,
-        state_file=state_file,
     )
     stop_event = threading.Event()
     tick_count = 0

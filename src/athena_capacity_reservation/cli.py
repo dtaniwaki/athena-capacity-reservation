@@ -62,6 +62,7 @@ def _compose(*decorators: Callable[..., Any]) -> Callable[..., Any]:
 def reservation_options(func: Any) -> Any:
     @click.option("--reservation-name", default=None, metavar="NAME", help="Athena Capacity Reservation name")
     @click.option("--slack-channel", default=None, metavar="CHANNEL_ID", help="Slack channel ID for notifications")
+    @click.option("--slack-thread-ts", default=None, metavar="TS", help="Slack thread timestamp to reply into")
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         return func(*args, **kwargs)
@@ -72,22 +73,6 @@ def reservation_options(func: Any) -> Any:
 def activate_options(func: Any) -> Any:
     @click.option("--workgroup-names", default=None, metavar="NAMES", help="Comma-separated Athena workgroup names")
     @click.option("--dpus", default=None, type=POSITIVE_INT, metavar="N", help="DPU count for the capacity reservation")
-    @functools.wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        return func(*args, **kwargs)
-
-    return wrapper
-
-
-def state_file_option(func: Any) -> Any:
-    default_path = str(Settings.model_fields["slack_state_file"].default)
-
-    @click.option(
-        "--state-file",
-        default=None,
-        metavar="FILE",
-        help=f"Path to JSON file storing Slack notification state (default: {default_path})",
-    )
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         return func(*args, **kwargs)
@@ -195,6 +180,7 @@ _SETTINGS_FIELDS = [
     "workgroup_names",
     "dpus",
     "slack_channel",
+    "slack_thread_ts",
     "min_dpus",
     "max_dpus",
     "scale_step_dpus",
@@ -213,10 +199,6 @@ def _build_settings(kwargs: dict[str, Any]) -> Settings:
         val = kwargs.get(field_name)
         if val is not None:
             overrides[field_name] = val
-
-    state_file = kwargs.get("state_file")
-    if state_file is not None:
-        overrides["slack_state_file"] = Path(state_file)
 
     pid_file = kwargs.get("pid_file")
     if pid_file is not None:
@@ -266,7 +248,6 @@ def main(ctx: click.Context, log_level: str) -> None:
 @main.command()
 @reservation_options
 @activate_options
-@state_file_option
 @click.pass_context
 def activate(ctx: click.Context, /, **kwargs: Any) -> None:
     """Activate the Athena Capacity Reservation."""
@@ -276,7 +257,6 @@ def activate(ctx: click.Context, /, **kwargs: Any) -> None:
 
 @main.command()
 @reservation_options
-@state_file_option
 @click.pass_context
 def deactivate(ctx: click.Context, /, **kwargs: Any) -> None:
     """Deactivate the Athena Capacity Reservation."""
@@ -291,7 +271,6 @@ def monitor() -> None:
 
 @monitor.command("start")
 @reservation_options
-@state_file_option
 @pid_file_option
 @daemon_options
 @monitor_options
@@ -332,7 +311,6 @@ def monitor_stop(ctx: click.Context, /, **kwargs: Any) -> None:
 @main.command()
 @reservation_options
 @activate_options
-@state_file_option
 @pid_file_option
 @daemon_options
 @monitor_options
@@ -359,7 +337,6 @@ def start(ctx: click.Context, /, **kwargs: Any) -> None:
 
 @main.command()
 @reservation_options
-@state_file_option
 @pid_file_option
 @click.pass_context
 def stop(ctx: click.Context, /, **kwargs: Any) -> None:

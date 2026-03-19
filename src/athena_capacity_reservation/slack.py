@@ -1,18 +1,16 @@
 """Slack helpers for athena_capacity_reservation."""
 
-import json
 import logging
-from pathlib import Path
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from slack_sdk import WebClient
 
 logger = logging.getLogger(__name__)
 
-
-class _SlackState(TypedDict, total=False):
-    thread_ts: str
+# In-process thread state: once the first message is posted,
+# subsequent messages are threaded under the same ts.
+_current_thread_ts: str | None = None
 
 
 def get_slack_client(slack_token: str | None) -> "WebClient | None":
@@ -29,32 +27,24 @@ def get_slack_client(slack_token: str | None) -> "WebClient | None":
     return WebClient(token=slack_token, timeout=30)
 
 
-def load_state(state_file: Path) -> _SlackState:
-    """Load Slack notification state from JSON file."""
-    if not state_file.exists():
-        return _SlackState()
-    try:
-        data = json.loads(state_file.read_text())
-        state = _SlackState()
-        if isinstance(data, dict) and isinstance(data.get("thread_ts"), str):
-            state["thread_ts"] = data["thread_ts"]
-        return state
-    except (json.JSONDecodeError, OSError) as e:
-        logger.warning("Failed to load state file %s: %s", state_file, e)
-        return _SlackState()
-
-
 def post_slack_message(
     message: str,
     color: str,
-    state_file: Path,
     slack_token: str | None = None,
     slack_channel: str | None = None,
+    slack_thread_ts: str | None = None,
 ) -> bool:
-    """Post a message to Slack in the existing build thread.
+    """Post a message to Slack.
+
+    Threading behaviour:
+    - If slack_thread_ts is provided, replies into that thread.
+    - Otherwise, the first call creates a new message and remembers its ts
+      so that subsequent calls within the same process are threaded.
 
     Returns True on success, False on skip or error.
     """
+    global _current_thread_ts  # noqa: PLW0603
+
     if not slack_channel:
         logger.warning("slack_channel is not set. Skipping Slack notification.")
         return False
@@ -66,8 +56,7 @@ def post_slack_message(
     try:
         from slack_sdk.errors import SlackApiError
 
-        state = load_state(state_file)
-        thread_ts = state.get("thread_ts")
+        thread_ts = _current_thread_ts or slack_thread_ts
 
         attachments = [
             {
@@ -78,18 +67,24 @@ def post_slack_message(
         ]
 
         if thread_ts:
-            client.chat_postMessage(
+            resp = client.chat_postMessage(
                 channel=slack_channel,
                 text=message,
                 attachments=attachments,
                 thread_ts=thread_ts,
             )
         else:
-            client.chat_postMessage(
+            resp = client.chat_postMessage(
                 channel=slack_channel,
                 text=message,
                 attachments=attachments,
             )
+
+        if _current_thread_ts is None:
+            ts = resp.get("ts")
+            if isinstance(ts, str):
+                _current_thread_ts = thread_ts or ts
+
         logger.info("Posted Slack message: %s", message)
         return True
     except SlackApiError as e:
