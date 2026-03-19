@@ -26,10 +26,10 @@ pip install "athena-capacity-reservation[slack]"
 ```
 athena-capacity-reservation activate
 athena-capacity-reservation deactivate
-athena-capacity-reservation monitor start [--daemon] [--state-file FILE] [--pid-file FILE]
+athena-capacity-reservation monitor start [--daemon] [--pid-file FILE]
 athena-capacity-reservation monitor stop  [--pid-file FILE]
-athena-capacity-reservation start          [--daemon] [--state-file FILE] [--pid-file FILE]
-athena-capacity-reservation stop           [--state-file FILE] [--pid-file FILE]
+athena-capacity-reservation start          [--daemon] [--pid-file FILE]
+athena-capacity-reservation stop           [--pid-file FILE]
 ```
 
 All environment variables can also be passed as CLI arguments. CLI arguments take precedence over environment variables. For example:
@@ -93,7 +93,7 @@ See [docs/fallback.md](docs/fallback.md) for recommended cleanup patterns to pre
 | `ATHENA_CR_LOW_TICKS_FOR_SCALE_IN` | `2` | Consecutive ticks below scale-in threshold before scale-in (positive integer) |
 | `ATHENA_CR_SLACK_CHANNEL` | — | Slack channel ID for notifications (falls back to `SLACK_CHANNEL`) |
 | `ATHENA_CR_SLACK_TOKEN` | — | Slack API token (falls back to `SLACK_TOKEN`) |
-| `ATHENA_CR_SLACK_STATE_FILE` | `<tempdir>/slack_state.json` | Path to JSON file storing Slack notification state |
+| `ATHENA_CR_SLACK_THREAD_TS` | — | Slack thread timestamp to reply into (falls back to `SLACK_THREAD_TS`) |
 | `ATHENA_CR_CAPACITY_PID_FILE` | `<tempdir>/capacity_monitor.pid` | Path to PID file for the background monitor |
 
 ### Autoscaling example
