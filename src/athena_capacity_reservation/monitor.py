@@ -183,7 +183,7 @@ def _scale_capacity_reservation(
 
 
 def _check_and_scale(
-    cfg: "_MonitorConfig",
+    cfg: _MonitorConfig,
     last_scale_time: float,
     queued_ticks: int = 0,
     low_ticks: int = 0,
@@ -357,7 +357,7 @@ def _daemonize(pid_file: Path, log_file: Path | None = None) -> None:
         root.addHandler(fh)
 
 
-def _run_monitor_loop(cfg: "_MonitorConfig", stop_event: threading.Event | None = None) -> None:
+def _run_monitor_loop(cfg: _MonitorConfig, stop_event: threading.Event | None = None) -> None:
     """Run the autoscale monitor loop until the stop_event is set.
 
     stop_event is set by SIGTERM/SIGINT handlers when running in the main thread
