@@ -58,6 +58,13 @@ class Settings(BaseSettings):
         default=Path(tempfile.gettempdir()) / "capacity_monitor.pid",
     )
 
+    @field_validator("reservation_name", mode="before")
+    @classmethod
+    def _normalize_reservation_name(cls, v: object) -> str | None:
+        if isinstance(v, str):
+            return v.strip() or None
+        return None
+
     @field_validator("workgroup_names", mode="before")
     @classmethod
     def _parse_workgroup_names(cls, v: Any) -> list[str]:
@@ -83,12 +90,12 @@ class Settings(BaseSettings):
     def _resolve_slack_env_fallback(self) -> Settings:
         """Fall back to non-prefixed SLACK_TOKEN / SLACK_CHANNEL env vars
         when the prefixed ATHENA_CR_SLACK_TOKEN / ATHENA_CR_SLACK_CHANNEL are not set."""
-        if self.slack_token is None:
-            self.slack_token = os.environ.get("SLACK_TOKEN")
-        if self.slack_channel is None:
-            self.slack_channel = os.environ.get("SLACK_CHANNEL")
-        if self.slack_thread_ts is None:
-            self.slack_thread_ts = os.environ.get("SLACK_THREAD_TS")
+        if not self.slack_token:
+            self.slack_token = os.environ.get("SLACK_TOKEN") or None
+        if not self.slack_channel:
+            self.slack_channel = os.environ.get("SLACK_CHANNEL") or None
+        if not self.slack_thread_ts:
+            self.slack_thread_ts = os.environ.get("SLACK_THREAD_TS") or None
         return self
 
     @model_validator(mode="after")
