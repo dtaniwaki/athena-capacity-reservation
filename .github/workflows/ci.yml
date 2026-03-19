@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
       - name: Run tests
-        run: uv run --extra dev nox -s test-${{ matrix.python-version }}
+        run: uv run --extra dev nox -s test-${{ matrix.python-version }} -- --cov-report=markdown:coverage.md
       - name: Coverage summary
         if: always()
         run: |

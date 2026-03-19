@@ -14,7 +14,7 @@ def test(session: nox.Session) -> None:
         "pytest",
         "--cov=athena_capacity_reservation",
         "--cov-report=term-missing",
-        "--cov-report=markdown:coverage.md",
+        *session.posargs,
     )
 
 
