@@ -24,6 +24,14 @@ jobs:
             cat coverage.md >> "$GITHUB_STEP_SUMMARY"
           fi
 
+  lockfile:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Check uv.lock is up to date
+        run: uv lock --check
+
   lint:
     runs-on: ubuntu-24.04
     steps:
