@@ -8,8 +8,8 @@ def test_get_slack_client_returns_none_without_token() -> None:
 
 
 def test_post_slack_message_returns_false_without_channel() -> None:
-    assert post_slack_message("msg", "#000000", slack_token="xoxb-test") is False
+    assert post_slack_message("msg", slack_token="xoxb-test") is False
 
 
 def test_post_slack_message_returns_false_without_token() -> None:
-    assert post_slack_message("msg", "#000000", slack_channel="C123") is False
+    assert post_slack_message("msg", slack_channel="C123") is False

@@ -29,7 +29,6 @@ def get_slack_client(slack_token: str | None) -> "WebClient | None":
 
 def post_slack_message(
     message: str,
-    color: str,
     slack_token: str | None = None,
     slack_channel: str | None = None,
     slack_thread_ts: str | None = None,
@@ -58,26 +57,16 @@ def post_slack_message(
 
         thread_ts = _current_thread_ts or slack_thread_ts
 
-        attachments = [
-            {
-                "color": color,
-                "fallback": message,
-                "blocks": [{"type": "section", "text": {"type": "mrkdwn", "text": message}}],
-            }
-        ]
-
         if thread_ts:
             resp = client.chat_postMessage(
                 channel=slack_channel,
                 text=message,
-                attachments=attachments,
                 thread_ts=thread_ts,
             )
         else:
             resp = client.chat_postMessage(
                 channel=slack_channel,
                 text=message,
-                attachments=attachments,
             )
 
         if _current_thread_ts is None:

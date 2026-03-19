@@ -8,10 +8,6 @@ import signal
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from athena_capacity_reservation.constants import (
-    COLOR_FAILURE,
-    COLOR_SUCCESS,
-)
 from athena_capacity_reservation.monitor import _daemonize, _run_monitor_loop
 from athena_capacity_reservation.reservation import (
     _activate_capacity_reservation_direct,
@@ -30,10 +26,9 @@ class MonitorStopError(RuntimeError):
     """Raised when the monitor process cannot be stopped."""
 
 
-def _post_slack(message: str, color: str, settings: Settings) -> bool:
+def _post_slack(message: str, settings: Settings) -> bool:
     return post_slack_message(
         message,
-        color,
         slack_token=settings.slack_token,
         slack_channel=settings.slack_channel,
         slack_thread_ts=settings.slack_thread_ts,
@@ -86,7 +81,7 @@ def cmd_activate(settings: Settings) -> None:
     except Exception as e:
         slack_msg = f"⚠️ Athena Capacity Reservation activation failed: {e}"
         logger.error(slack_msg)
-        _post_slack(slack_msg, COLOR_FAILURE, settings)
+        _post_slack(slack_msg, settings)
         raise
 
     try:
@@ -94,7 +89,7 @@ def cmd_activate(settings: Settings) -> None:
     except TimeoutError as e:
         slack_msg = f"⚠️ Athena Capacity Reservation activation timed out: {e}"
         logger.error(slack_msg)
-        _post_slack(slack_msg, COLOR_FAILURE, settings)
+        _post_slack(slack_msg, settings)
         raise
 
     logger.info(
@@ -103,7 +98,7 @@ def cmd_activate(settings: Settings) -> None:
         settings.dpus,
     )
     slack_msg = f"⚡ Athena Capacity Reservation activated ({settings.dpus} DPUs)"
-    _post_slack(slack_msg, COLOR_SUCCESS, settings)
+    _post_slack(slack_msg, settings)
 
 
 def cmd_deactivate(settings: Settings) -> None:
@@ -118,17 +113,17 @@ def cmd_deactivate(settings: Settings) -> None:
     except Exception as e:
         slack_msg = f"⚠️ Athena Capacity Reservation deactivation failed (manual cleanup may be required): {e}"
         logger.error(slack_msg)
-        _post_slack(slack_msg, COLOR_FAILURE, settings)
+        _post_slack(slack_msg, settings)
         raise
 
     if deactivate_result == "update_pending_timeout":
         slack_msg = "⚠️ Athena Capacity Reservation deactivation skipped (UPDATE_PENDING timeout)"
         logger.warning(slack_msg)
-        _post_slack(slack_msg, COLOR_FAILURE, settings)
+        _post_slack(slack_msg, settings)
         return
 
     logger.info("Athena Capacity Reservation '%s' deactivated.", settings.reservation_name)
-    _post_slack("🔋 Athena Capacity Reservation deactivated", COLOR_SUCCESS, settings)
+    _post_slack("🔋 Athena Capacity Reservation deactivated", settings)
 
 
 def cmd_monitor_start(settings: Settings, daemon: bool = False, log_file: Path | None = None) -> None:

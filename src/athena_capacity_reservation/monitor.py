@@ -22,7 +22,6 @@ if TYPE_CHECKING:
     from mypy_boto3_athena.type_defs import ListQueryExecutionsInputTypeDef
     from mypy_boto3_cloudwatch import CloudWatchClient
 
-from athena_capacity_reservation.constants import COLOR_SCALE
 from athena_capacity_reservation.slack import post_slack_message
 
 logger = logging.getLogger(__name__)
@@ -315,7 +314,6 @@ def _check_and_scale(
     logger.info("%s", scale_msg)
     post_slack_message(
         scale_msg,
-        COLOR_SCALE,
         slack_token=cfg.slack_token,
         slack_channel=cfg.slack_channel,
         slack_thread_ts=cfg.slack_thread_ts,
