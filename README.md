@@ -82,6 +82,7 @@ See [docs/fallback.md](docs/fallback.md) for recommended cleanup patterns to pre
 
 | Variable | Default | Description |
 |---|---|---|
+| `ATHENA_CR_LOG_LEVEL` | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) |
 | `ATHENA_CR_MIN_DPUS` | `ATHENA_CR_DPUS` | Scale-in lower bound (positive integer) |
 | `ATHENA_CR_MAX_DPUS` | `ATHENA_CR_MIN_DPUS` (no autoscaling) | Scale-out upper bound (positive integer) |
 | `ATHENA_CR_SCALE_STEP_DPUS` | `8` | DPU step per scale event (positive integer) |
