@@ -234,6 +234,7 @@ def _setup_logging(log_file: Path | None = None, log_level: str = "INFO") -> Non
 @click.option(
     "--log-level",
     default="INFO",
+    envvar="ATHENA_CR_LOG_LEVEL",
     type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False),
     help="Set the logging level (default: INFO)",
 )
