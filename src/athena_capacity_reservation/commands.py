@@ -122,6 +122,10 @@ def cmd_deactivate(settings: Settings) -> None:
         _post_slack(slack_msg, settings)
         return
 
+    if deactivate_result == "no-op":
+        logger.info("Athena Capacity Reservation '%s' already inactive, skipping.", settings.reservation_name)
+        return
+
     logger.info("Athena Capacity Reservation '%s' deactivated.", settings.reservation_name)
     _post_slack("🔋 Athena Capacity Reservation deactivated", settings)
 

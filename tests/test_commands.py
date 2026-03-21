@@ -150,6 +150,21 @@ def test_cmd_deactivate_update_pending_timeout_skips(
     assert "UPDATE_PENDING" in msg_text
 
 
+@patch("athena_capacity_reservation.commands._deactivate_capacity_reservation_direct")
+@patch("athena_capacity_reservation.commands.post_slack_message")
+def test_cmd_deactivate_noop_skips_slack(
+    mock_slack: MagicMock,
+    mock_direct: MagicMock,
+) -> None:
+    mock_direct.return_value = "no-op"
+    s = _settings()
+
+    cmd_deactivate(s)
+
+    mock_direct.assert_called_once_with("my-reservation")
+    mock_slack.assert_not_called()
+
+
 def test_cmd_deactivate_errors_when_no_reservation_name() -> None:
     s = _settings(reservation_name=None)
     with pytest.raises(RuntimeError, match="reservation_name"):
