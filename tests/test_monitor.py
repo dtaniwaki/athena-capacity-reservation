@@ -10,6 +10,7 @@ from botocore.exceptions import ClientError
 from helpers import _cfg
 
 from athena_capacity_reservation.monitor import (
+    ScaleCheckResult,
     _check_and_scale,
     _daemonize,
     _get_dpu_metrics,
@@ -693,14 +694,14 @@ def test_monitor_loop_does_not_reset_last_scale_time_on_error() -> None:
     received_last_scale_times: list[float] = []
     call_count = 0
 
-    def fake_check(_cfg: object, last_scale_time: float, *args: object, **kwargs: object) -> tuple[float, int, int, int]:
+    def fake_check(_cfg: object, last_scale_time: float, *args: object, **kwargs: object) -> ScaleCheckResult:
         nonlocal call_count
         call_count += 1
         received_last_scale_times.append(last_scale_time)
         if call_count == 1:
             raise RuntimeError("API error")
         stop_event.set()
-        return last_scale_time, 0, 0, 0
+        return ScaleCheckResult(last_scale_time, 0, 0, 0)
 
     with (
         patch("athena_capacity_reservation.monitor.boto3"),

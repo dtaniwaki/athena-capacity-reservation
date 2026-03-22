@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from athena_capacity_reservation import cmd_start, cmd_stop
-from athena_capacity_reservation.monitor import _MonitorConfig, _run_monitor_loop
+from athena_capacity_reservation.monitor import ScaleCheckResult, _MonitorConfig, _run_monitor_loop
 from athena_capacity_reservation.settings import Settings
 
 # ---------------------------------------------------------------------------
@@ -123,11 +123,11 @@ def test_monitor_loop_runs_check_and_scale_then_stops() -> None:
     stop_event = threading.Event()
     tick_count = 0
 
-    def fake_check_and_scale(c: object, last: float, **kw: object) -> tuple[float, int, int, int]:
+    def fake_check_and_scale(c: object, last: float, **kw: object) -> ScaleCheckResult:
         nonlocal tick_count
         tick_count += 1
         stop_event.set()
-        return last, 0, 0, 0
+        return ScaleCheckResult(last, 0, 0, 0)
 
     with (
         patch("athena_capacity_reservation.monitor.boto3"),

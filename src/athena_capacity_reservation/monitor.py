@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import FrameType
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, NamedTuple
 
 import boto3
 from botocore.exceptions import ClientError
@@ -25,6 +25,15 @@ if TYPE_CHECKING:
 from athena_capacity_reservation.slack import post_slack_message
 
 logger = logging.getLogger(__name__)
+
+
+class ScaleCheckResult(NamedTuple):
+    """Return value of _check_and_scale."""
+
+    last_scale_time: float
+    queued_ticks: int
+    low_ticks: int
+    high_ticks: int
 
 
 @dataclass
@@ -191,10 +200,10 @@ def _check_and_scale(
     *,
     athena_client: AthenaClient | None = None,
     cw_client: CloudWatchClient | None = None,
-) -> tuple[float, int, int, int]:
+) -> ScaleCheckResult:
     """Check utilization and scale if thresholds are crossed.
 
-    Returns (last_scale_time, queued_ticks, low_ticks, high_ticks) where:
+    Returns ScaleCheckResult(last_scale_time, queued_ticks, low_ticks, high_ticks) where:
     - queued_ticks counts consecutive ticks with QUEUED Athena queries detected.
       Used as an accelerated scale-out trigger after cfg.min_queued_ticks consecutive ticks.
     - low_ticks counts consecutive ticks with utilization <= cfg.scale_in_threshold.
@@ -211,14 +220,14 @@ def _check_and_scale(
     metrics = _get_dpu_metrics(cfg.reservation_name, lookback_seconds=lookback, cw_client=cw_client)
     if metrics is None:
         logger.debug("No DPU metrics data available yet, skipping")
-        return last_scale_time, queued_ticks, low_ticks, high_ticks
+        return ScaleCheckResult(last_scale_time, queued_ticks, low_ticks, high_ticks)
 
     utilization, allocated_dpus = metrics
     if allocated_dpus == 0:
         # Reservation not yet allocating DPUs (e.g. still transitioning to ACTIVE).
         # Utilization formula returns 0 in this case, which would falsely trigger scale-in.
         logger.debug("Allocated DPUs is 0 (reservation not yet active), skipping scale check")
-        return last_scale_time, queued_ticks, low_ticks, high_ticks
+        return ScaleCheckResult(last_scale_time, queued_ticks, low_ticks, high_ticks)
     logger.info("DPU utilization: %.1f%%, allocated: %.0f", utilization, allocated_dpus)
 
     in_cooldown = (time.time() - last_scale_time) < cfg.cooldown_seconds
@@ -228,7 +237,7 @@ def _check_and_scale(
         # Preserve tick counters across cooldown so that consecutive-tick
         # counters are not reset; scaling triggers immediately after cooldown expires
         # if the condition was already sustained before the previous scale event.
-        return last_scale_time, queued_ticks, low_ticks, high_ticks
+        return ScaleCheckResult(last_scale_time, queued_ticks, low_ticks, high_ticks)
 
     if utilization >= cfg.scale_out_threshold:
         low_ticks = 0
@@ -246,7 +255,7 @@ def _check_and_scale(
                 )
                 # Utilization is confirmed high (high_ticks preserved) but queue status
                 # is uncertain (queued_ticks reset to avoid false accelerated path).
-                return last_scale_time, 0, 0, new_high_ticks
+                return ScaleCheckResult(last_scale_time, 0, 0, new_high_ticks)
             if has_queued:
                 new_queued_ticks = queued_ticks + 1
                 logger.info(
@@ -263,7 +272,7 @@ def _check_and_scale(
                         new_high_ticks,
                         cfg.min_high_ticks,
                     )
-                    return last_scale_time, new_queued_ticks, 0, new_high_ticks
+                    return ScaleCheckResult(last_scale_time, new_queued_ticks, 0, new_high_ticks)
             else:
                 logger.info("No queued queries detected")
                 if new_high_ticks < cfg.min_high_ticks:
@@ -272,7 +281,7 @@ def _check_and_scale(
                         new_high_ticks,
                         cfg.min_high_ticks,
                     )
-                    return last_scale_time, 0, 0, new_high_ticks
+                    return ScaleCheckResult(last_scale_time, 0, 0, new_high_ticks)
         else:
             if new_high_ticks < cfg.min_high_ticks:
                 logger.info(
@@ -280,7 +289,7 @@ def _check_and_scale(
                     new_high_ticks,
                     cfg.min_high_ticks,
                 )
-                return last_scale_time, 0, 0, new_high_ticks
+                return ScaleCheckResult(last_scale_time, 0, 0, new_high_ticks)
         dpu_delta = cfg.scale_step_dpus
     elif utilization <= cfg.scale_in_threshold:
         queued_ticks = 0
@@ -297,7 +306,7 @@ def _check_and_scale(
                 new_low_ticks,
                 cfg.min_low_ticks,
             )
-            return last_scale_time, 0, new_low_ticks, 0
+            return ScaleCheckResult(last_scale_time, 0, new_low_ticks, 0)
         if cfg.workgroup_names:
             # Scale-in queued check is deferred until the tick threshold is achieved:
             # checking on every tick during the deferral period would be wasteful since
@@ -309,16 +318,16 @@ def _check_and_scale(
                 logger.warning(
                     "Could not determine queued query status, suppressing scale-in as a precaution",
                 )
-                return last_scale_time, 0, new_low_ticks, 0
+                return ScaleCheckResult(last_scale_time, 0, new_low_ticks, 0)
             if has_queued:
                 logger.warning(
                     "Scale-in suppressed: queued queries detected despite low utilization",
                 )
-                return last_scale_time, 0, new_low_ticks, 0
+                return ScaleCheckResult(last_scale_time, 0, new_low_ticks, 0)
         dpu_delta = -cfg.scale_step_dpus
     else:
         logger.debug("Utilization within thresholds, skipping scale check")
-        return last_scale_time, 0, 0, 0
+        return ScaleCheckResult(last_scale_time, 0, 0, 0)
 
     action, from_dpus, to_dpus = _scale_capacity_reservation(
         cfg.reservation_name,
@@ -329,7 +338,7 @@ def _check_and_scale(
     )
     if action != "scaled":
         logger.info("Scale no-op (clamped at %d DPU)", from_dpus)
-        return last_scale_time, 0, 0, 0
+        return ScaleCheckResult(last_scale_time, 0, 0, 0)
     if to_dpus > from_dpus:
         scale_msg = f"📈 Athena DPU scale-out: {from_dpus}→{to_dpus}"
     else:
@@ -341,7 +350,7 @@ def _check_and_scale(
         slack_channel=cfg.slack_channel,
         slack_thread_ts=cfg.slack_thread_ts,
     )
-    return time.time(), 0, 0, 0
+    return ScaleCheckResult(time.time(), 0, 0, 0)
 
 
 def _daemonize(pid_file: Path, log_file: Path | None = None) -> None:
@@ -436,7 +445,7 @@ def _run_monitor_loop(cfg: _MonitorConfig, stop_event: threading.Event | None = 
         if stop_event.wait(timeout=cfg.monitor_interval_seconds):
             break
         try:
-            last_scale_time, queued_ticks, low_ticks, high_ticks = _check_and_scale(
+            result = _check_and_scale(
                 cfg,
                 last_scale_time,
                 queued_ticks=queued_ticks,
@@ -445,6 +454,10 @@ def _run_monitor_loop(cfg: _MonitorConfig, stop_event: threading.Event | None = 
                 athena_client=athena_client,
                 cw_client=cw_client,
             )
+            last_scale_time = result.last_scale_time
+            queued_ticks = result.queued_ticks
+            low_ticks = result.low_ticks
+            high_ticks = result.high_ticks
         except Exception as e:
             logger.error("Error in capacity monitor tick: %s", e)
             # Do not reset last_scale_time on error: resetting the cooldown timer
