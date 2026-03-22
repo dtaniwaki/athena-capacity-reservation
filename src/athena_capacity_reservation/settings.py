@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     monitor_interval: int = Field(default=60, gt=0)
     cooldown_seconds: int = Field(default=300, gt=0)
     queued_ticks_for_scale_out: int = Field(default=2, gt=0)
+    high_ticks_for_scale_out: int = Field(default=5, gt=0)
     low_ticks_for_scale_in: int = Field(default=2, gt=0)
 
     slack_token: str | None = None
@@ -148,6 +149,7 @@ class Settings(BaseSettings):
             cooldown_seconds=self.cooldown_seconds,
             workgroup_names=self.workgroup_names,
             min_queued_ticks=self.queued_ticks_for_scale_out,
+            min_high_ticks=self.high_ticks_for_scale_out,
             min_low_ticks=self.low_ticks_for_scale_in,
             slack_token=self.slack_token,
             slack_channel=self.slack_channel,

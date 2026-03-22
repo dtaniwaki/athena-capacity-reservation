@@ -158,6 +158,13 @@ def monitor_options(func: Any) -> Any:
         help="Consecutive ticks with queued queries before scale-out (default: 2)",
     )
     @click.option(
+        "--high-ticks-for-scale-out",
+        default=None,
+        type=POSITIVE_INT,
+        metavar="N",
+        help="Consecutive ticks with high utilization before scale-out (default: 5)",
+    )
+    @click.option(
         "--low-ticks-for-scale-in",
         default=None,
         type=POSITIVE_INT,
@@ -189,6 +196,7 @@ _SETTINGS_FIELDS = [
     "monitor_interval",
     "cooldown_seconds",
     "queued_ticks_for_scale_out",
+    "high_ticks_for_scale_out",
     "low_ticks_for_scale_in",
 ]
 
