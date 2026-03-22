@@ -242,11 +242,14 @@ def _check_and_scale(
     if utilization >= cfg.scale_out_threshold:
         low_ticks = 0
         new_high_ticks = high_ticks + 1
+        new_queued_ticks = 0
         logger.info(
             "High utilization (consecutive ticks: %d/%d)",
             new_high_ticks,
             cfg.min_high_ticks,
         )
+
+        # Accelerated path: check queued queries when workgroup_names is configured.
         if cfg.workgroup_names:
             has_queued = _has_queued_queries(cfg.workgroup_names, athena_client=athena_client)
             if has_queued is None:
@@ -263,33 +266,22 @@ def _check_and_scale(
                     new_queued_ticks,
                     cfg.min_queued_ticks,
                 )
-                if new_queued_ticks < cfg.min_queued_ticks and new_high_ticks < cfg.min_high_ticks:
-                    logger.info(
-                        "Scale-out deferred: waiting for sustained queue (%d/%d ticks) "
-                        "or utilization (%d/%d ticks)",
-                        new_queued_ticks,
-                        cfg.min_queued_ticks,
-                        new_high_ticks,
-                        cfg.min_high_ticks,
-                    )
-                    return ScaleCheckResult(last_scale_time, new_queued_ticks, 0, new_high_ticks)
             else:
                 logger.info("No queued queries detected")
-                if new_high_ticks < cfg.min_high_ticks:
-                    logger.info(
-                        "Scale-out deferred: waiting for sustained high utilization (%d/%d ticks)",
-                        new_high_ticks,
-                        cfg.min_high_ticks,
-                    )
-                    return ScaleCheckResult(last_scale_time, 0, 0, new_high_ticks)
-        else:
-            if new_high_ticks < cfg.min_high_ticks:
-                logger.info(
-                    "Scale-out deferred: waiting for sustained high utilization (%d/%d ticks)",
-                    new_high_ticks,
-                    cfg.min_high_ticks,
-                )
-                return ScaleCheckResult(last_scale_time, 0, 0, new_high_ticks)
+
+        # Either path met → scale out; otherwise defer.
+        sustained = new_high_ticks >= cfg.min_high_ticks
+        accelerated = new_queued_ticks >= cfg.min_queued_ticks
+        if not sustained and not accelerated:
+            logger.info(
+                "Scale-out deferred: waiting for sustained high utilization (%d/%d ticks)"
+                + (" or queued queries (%d/%d ticks)" if new_queued_ticks else ""),
+                new_high_ticks,
+                cfg.min_high_ticks,
+                *([new_queued_ticks, cfg.min_queued_ticks] if new_queued_ticks else []),
+            )
+            return ScaleCheckResult(last_scale_time, new_queued_ticks, 0, new_high_ticks)
+
         dpu_delta = cfg.scale_step_dpus
     elif utilization <= cfg.scale_in_threshold:
         queued_ticks = 0
