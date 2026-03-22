@@ -197,6 +197,7 @@ def test_build_monitor_config_custom_values() -> None:
         monitor_interval=120,
         cooldown_seconds=600,
         queued_ticks_for_scale_out=3,
+        high_ticks_for_scale_out=7,
         low_ticks_for_scale_in=5,
         slack_token="xoxb-test",
         slack_channel="C123",
@@ -208,6 +209,7 @@ def test_build_monitor_config_custom_values() -> None:
     assert cfg.monitor_interval_seconds == 120
     assert cfg.cooldown_seconds == 600
     assert cfg.min_queued_ticks == 3
+    assert cfg.min_high_ticks == 7
     assert cfg.min_low_ticks == 5
     assert cfg.slack_token == "xoxb-test"
     assert cfg.slack_channel == "C123"

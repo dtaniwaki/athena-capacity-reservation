@@ -244,6 +244,8 @@ def _check_and_scale(
                 logger.warning(
                     "Could not determine queued query status, suppressing scale-out as a precaution",
                 )
+                # Utilization is confirmed high (high_ticks preserved) but queue status
+                # is uncertain (queued_ticks reset to avoid false accelerated path).
                 return last_scale_time, 0, 0, new_high_ticks
             if has_queued:
                 new_queued_ticks = queued_ticks + 1
@@ -252,11 +254,7 @@ def _check_and_scale(
                     new_queued_ticks,
                     cfg.min_queued_ticks,
                 )
-                if new_queued_ticks >= cfg.min_queued_ticks:
-                    pass  # accelerated path → fall through to scale
-                elif new_high_ticks >= cfg.min_high_ticks:
-                    pass  # sustained path → fall through to scale
-                else:
+                if new_queued_ticks < cfg.min_queued_ticks and new_high_ticks < cfg.min_high_ticks:
                     logger.info(
                         "Scale-out deferred: waiting for sustained queue (%d/%d ticks) "
                         "or utilization (%d/%d ticks)",
@@ -267,12 +265,8 @@ def _check_and_scale(
                     )
                     return last_scale_time, new_queued_ticks, 0, new_high_ticks
             else:
-                logger.info(
-                    "No queued queries (high utilization but no capacity shortage)",
-                )
-                if new_high_ticks >= cfg.min_high_ticks:
-                    pass  # sustained path → fall through to scale
-                else:
+                logger.info("No queued queries detected")
+                if new_high_ticks < cfg.min_high_ticks:
                     logger.info(
                         "Scale-out deferred: waiting for sustained high utilization (%d/%d ticks)",
                         new_high_ticks,
@@ -280,9 +274,7 @@ def _check_and_scale(
                     )
                     return last_scale_time, 0, 0, new_high_ticks
         else:
-            if new_high_ticks >= cfg.min_high_ticks:
-                pass  # sustained path → fall through to scale
-            else:
+            if new_high_ticks < cfg.min_high_ticks:
                 logger.info(
                     "Scale-out deferred: waiting for sustained high utilization (%d/%d ticks)",
                     new_high_ticks,
