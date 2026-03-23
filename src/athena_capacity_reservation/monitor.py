@@ -141,7 +141,7 @@ def _get_dpu_metrics(
                             "Dimensions": [{"Name": "Capacity Reservation", "Value": reservation_name}],
                         },
                         "Period": 60,
-                        "Stat": "Maximum",
+                        "Stat": "Average",
                     },
                     "ReturnData": False,
                 },
