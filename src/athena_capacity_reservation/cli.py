@@ -179,7 +179,7 @@ def monitor_options(func: Any) -> Any:
         help="Consecutive ticks below scale-in threshold before scale-in (default: 2)",
     )
     @click.option(
-        "--consumed-stat",
+        "--dpu-consumed-stat",
         default=None,
         type=click.Choice([s.value for s in ConsumedStat], case_sensitive=False),
         metavar="STAT",
@@ -212,7 +212,7 @@ _SETTINGS_FIELDS = [
     "queued_ticks_for_scale_out",
     "high_ticks_for_scale_out",
     "low_ticks_for_scale_in",
-    "consumed_stat",
+    "dpu_consumed_stat",
 ]
 
 
@@ -223,8 +223,8 @@ def _build_settings(kwargs: dict[str, Any]) -> Settings:
         if val is not None:
             overrides[field_name] = val
 
-    if "consumed_stat" in overrides and isinstance(overrides["consumed_stat"], str):
-        overrides["consumed_stat"] = ConsumedStat(overrides["consumed_stat"].lower())
+    if "dpu_consumed_stat" in overrides and isinstance(overrides["dpu_consumed_stat"], str):
+        overrides["dpu_consumed_stat"] = ConsumedStat(overrides["dpu_consumed_stat"].lower())
 
     pid_file = kwargs.get("pid_file")
     if pid_file is not None:

@@ -85,7 +85,7 @@ class _MonitorConfig:
     min_queued_ticks: int = 2
     min_high_ticks: int = 3
     min_low_ticks: int = 2
-    consumed_stat: ConsumedStat = ConsumedStat.P90
+    dpu_consumed_stat: ConsumedStat = ConsumedStat.P90
     slack_token: str | None = None
     slack_channel: str | None = None
     slack_thread_ts: str | None = None
@@ -96,7 +96,7 @@ def _get_dpu_metrics(
     reservation_name: str,
     lookback_seconds: int = 300,
     *,
-    consumed_stat: ConsumedStat = ConsumedStat.P90,
+    dpu_consumed_stat: ConsumedStat = ConsumedStat.P90,
     cw_client: CloudWatchClient | None = None,
 ) -> DpuMetrics | None:
     """Return (utilization_percent, allocated_dpus) from CloudWatch, or None if no data.
@@ -136,7 +136,7 @@ def _get_dpu_metrics(
                             "Dimensions": [{"Name": "Capacity Reservation", "Value": reservation_name}],
                         },
                         "Period": 60,
-                        "Stat": consumed_stat.cloudwatch_value,
+                        "Stat": dpu_consumed_stat.cloudwatch_value,
                     },
                     "ReturnData": True,
                 },
@@ -221,7 +221,7 @@ def _check_and_scale(
     """
     lookback = max(300, cfg.monitor_interval_seconds * 5)
     metrics = _get_dpu_metrics(
-        cfg.reservation_name, lookback_seconds=lookback, consumed_stat=cfg.consumed_stat, cw_client=cw_client
+        cfg.reservation_name, lookback_seconds=lookback, dpu_consumed_stat=cfg.dpu_consumed_stat, cw_client=cw_client
     )
     if metrics is None:
         logger.debug("No DPU metrics data available yet, skipping")

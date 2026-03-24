@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     queued_ticks_for_scale_out: int = Field(default=2, gt=0)
     high_ticks_for_scale_out: int = Field(default=5, gt=0)
     low_ticks_for_scale_in: int = Field(default=2, gt=0)
-    consumed_stat: ConsumedStat = ConsumedStat.P90
+    dpu_consumed_stat: ConsumedStat = ConsumedStat.P90
 
     slack_token: str | None = None
     slack_channel: str | None = None
@@ -60,9 +60,9 @@ class Settings(BaseSettings):
         default=Path(tempfile.gettempdir()) / "capacity_monitor.pid",
     )
 
-    @field_validator("consumed_stat", mode="before")
+    @field_validator("dpu_consumed_stat", mode="before")
     @classmethod
-    def _normalize_consumed_stat(cls, v: Any) -> ConsumedStat:
+    def _normalize_dpu_consumed_stat(cls, v: Any) -> ConsumedStat:
         if isinstance(v, ConsumedStat):
             return v
         if isinstance(v, str):
@@ -161,7 +161,7 @@ class Settings(BaseSettings):
             min_queued_ticks=self.queued_ticks_for_scale_out,
             min_high_ticks=self.high_ticks_for_scale_out,
             min_low_ticks=self.low_ticks_for_scale_in,
-            consumed_stat=self.consumed_stat,
+            dpu_consumed_stat=self.dpu_consumed_stat,
             slack_token=self.slack_token,
             slack_channel=self.slack_channel,
             slack_thread_ts=self.slack_thread_ts,
