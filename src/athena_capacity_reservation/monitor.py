@@ -136,7 +136,6 @@ def _get_dpu_metrics(
                 "skipping scaling decision",
             )
             return None
-<<<<<<< HEAD
         allocated = allocated_values[0]
         consumed = consumed_values[0]
         utilization = (consumed / allocated * 100) if allocated > 0 else 0.0
