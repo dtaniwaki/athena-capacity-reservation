@@ -90,7 +90,7 @@ See [docs/fallback.md](docs/fallback.md) for recommended cleanup patterns to pre
 | `ATHENA_CR_SCALE_IN_THRESHOLD` | `30` | Utilization % to trigger scale-in (`0 < value < 100`) |
 | `ATHENA_CR_MONITOR_INTERVAL` | `60` | Poll interval in seconds (positive integer) |
 | `ATHENA_CR_COOLDOWN_SECONDS` | `300` | Minimum seconds between scale events (positive integer) |
-| `ATHENA_CR_QUEUED_TICKS_FOR_SCALE_OUT` | `2` | Consecutive ticks with queued queries before scale-out (positive integer) |
+| `ATHENA_CR_QUEUED_TICKS_FOR_SCALE_OUT` | `2` | Consecutive ticks with utilization >= 100% before accelerated scale-out (positive integer) |
 | `ATHENA_CR_LOW_TICKS_FOR_SCALE_IN` | `2` | Consecutive ticks below scale-in threshold before scale-in (positive integer) |
 | `ATHENA_CR_SLACK_CHANNEL` | — | Slack channel ID for notifications (falls back to `SLACK_CHANNEL`) |
 | `ATHENA_CR_SLACK_TOKEN` | — | Slack API token (falls back to `SLACK_TOKEN`) |
@@ -141,15 +141,6 @@ If `ATHENA_CR_MAX_DPUS` is not set, the monitor runs with a fixed DPU count (no 
       ]
     },
     {
-      "Sid": "DetectQueuedQueries",
-      "Effect": "Allow",
-      "Action": [
-        "athena:ListQueryExecutions",
-        "athena:BatchGetQueryExecution"
-      ],
-      "Resource": "arn:aws:athena:<region>:<account-id>:workgroup/<workgroup-name>"
-    },
-    {
       "Sid": "FetchDpuUtilizationMetrics",
       "Effect": "Allow",
       "Action": [
@@ -163,7 +154,6 @@ If `ATHENA_CR_MAX_DPUS` is not set, the monitor runs with a fixed DPU count (no 
 
 - `ManageCapacityReservation` — create, update, cancel, and delete the reservation
 - `AssignWorkgroupsToReservation` — bind workgroups to the reservation
-- `DetectQueuedQueries` — detect queued queries for scale-out decisions (autoscale monitor only)
 - `FetchDpuUtilizationMetrics` — fetch DPU utilization from CloudWatch (autoscale monitor only, `Resource: "*"` is required because CloudWatch `GetMetricData` does not support resource-level permissions)
 
 ## Development
