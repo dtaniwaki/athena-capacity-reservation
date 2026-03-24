@@ -20,6 +20,7 @@ from athena_capacity_reservation.commands import (
     cmd_start,
     cmd_stop,
 )
+from athena_capacity_reservation.monitor import ConsumedStat
 from athena_capacity_reservation.settings import Settings
 
 
@@ -177,6 +178,13 @@ def monitor_options(func: Any) -> Any:
         metavar="N",
         help="Consecutive ticks below scale-in threshold before scale-in (default: 2)",
     )
+    @click.option(
+        "--consumed-stat",
+        default=None,
+        type=click.Choice([s.value for s in ConsumedStat], case_sensitive=False),
+        metavar="STAT",
+        help="CloudWatch Stat for DPUConsumed (default: p90)",
+    )
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         return func(*args, **kwargs)
@@ -204,6 +212,7 @@ _SETTINGS_FIELDS = [
     "queued_ticks_for_scale_out",
     "high_ticks_for_scale_out",
     "low_ticks_for_scale_in",
+    "consumed_stat",
 ]
 
 
@@ -213,6 +222,9 @@ def _build_settings(kwargs: dict[str, Any]) -> Settings:
         val = kwargs.get(field_name)
         if val is not None:
             overrides[field_name] = val
+
+    if "consumed_stat" in overrides and isinstance(overrides["consumed_stat"], str):
+        overrides["consumed_stat"] = ConsumedStat(overrides["consumed_stat"].lower())
 
     pid_file = kwargs.get("pid_file")
     if pid_file is not None:

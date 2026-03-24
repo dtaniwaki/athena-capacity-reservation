@@ -10,6 +10,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from enum import StrEnum
 from pathlib import Path
 from types import FrameType
 from typing import TYPE_CHECKING, Literal, NamedTuple
@@ -24,6 +25,24 @@ if TYPE_CHECKING:
 from athena_capacity_reservation.slack import post_slack_message
 
 logger = logging.getLogger(__name__)
+
+
+class ConsumedStat(StrEnum):
+    """CloudWatch Stat values supported for DPUConsumed metric."""
+
+    AVERAGE = "average"
+    MINIMUM = "minimum"
+    MAXIMUM = "maximum"
+    P50 = "p50"
+    P90 = "p90"
+    P95 = "p95"
+    P99 = "p99"
+
+    @property
+    def cloudwatch_value(self) -> str:
+        """Return the value as CloudWatch API expects it (capitalized for standard stats)."""
+        standard = {"average": "Average", "minimum": "Minimum", "maximum": "Maximum"}
+        return standard.get(self.value, self.value)
 
 
 class DpuMetrics(NamedTuple):
@@ -66,6 +85,7 @@ class _MonitorConfig:
     min_queued_ticks: int = 2
     min_high_ticks: int = 3
     min_low_ticks: int = 2
+    consumed_stat: ConsumedStat = ConsumedStat.P90
     slack_token: str | None = None
     slack_channel: str | None = None
     slack_thread_ts: str | None = None
@@ -76,6 +96,7 @@ def _get_dpu_metrics(
     reservation_name: str,
     lookback_seconds: int = 300,
     *,
+    consumed_stat: ConsumedStat = ConsumedStat.P90,
     cw_client: CloudWatchClient | None = None,
 ) -> DpuMetrics | None:
     """Return (utilization_percent, allocated_dpus) from CloudWatch, or None if no data.
@@ -115,7 +136,7 @@ def _get_dpu_metrics(
                             "Dimensions": [{"Name": "Capacity Reservation", "Value": reservation_name}],
                         },
                         "Period": 60,
-                        "Stat": "Average",
+                        "Stat": consumed_stat.cloudwatch_value,
                     },
                     "ReturnData": True,
                 },
@@ -199,7 +220,9 @@ def _check_and_scale(
       bypassing the high_ticks requirement.
     """
     lookback = max(300, cfg.monitor_interval_seconds * 5)
-    metrics = _get_dpu_metrics(cfg.reservation_name, lookback_seconds=lookback, cw_client=cw_client)
+    metrics = _get_dpu_metrics(
+        cfg.reservation_name, lookback_seconds=lookback, consumed_stat=cfg.consumed_stat, cw_client=cw_client
+    )
     if metrics is None:
         logger.debug("No DPU metrics data available yet, skipping")
         return ScaleCheckResult(last_scale_time, queued_ticks, low_ticks, high_ticks)
