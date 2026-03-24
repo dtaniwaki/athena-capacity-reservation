@@ -19,7 +19,6 @@ from botocore.exceptions import ClientError
 
 if TYPE_CHECKING:
     from mypy_boto3_athena import AthenaClient
-    from mypy_boto3_athena.type_defs import ListQueryExecutionsInputTypeDef
     from mypy_boto3_cloudwatch import CloudWatchClient
 
 from athena_capacity_reservation.slack import post_slack_message
@@ -56,42 +55,6 @@ class _MonitorConfig:
     slack_channel: str | None = None
     slack_thread_ts: str | None = None
 
-
-def _has_queued_queries(workgroup_names: list[str], *, athena_client: AthenaClient | None = None) -> bool | None:
-    """Check whether any QUEUED (waiting for DPU) Athena queries exist across workgroups.
-
-    A queued query is a reliable signal that current DPU capacity is insufficient:
-    queries are waiting because all reserved DPUs are already in use.
-
-    Paginates through query executions and returns early as soon as the first QUEUED
-    query is found.
-
-    Returns None on API error.
-    """
-    try:
-        athena = athena_client or boto3.client("athena")
-        for wg in workgroup_names:
-            next_token: str | None = None
-            while True:
-                # MaxResults=50 aligns with batch_get_query_execution's 50-ID limit,
-                # so exec_ids can be passed directly without chunking.
-                kwargs: ListQueryExecutionsInputTypeDef = {"WorkGroup": wg, "MaxResults": 50}
-                if next_token:
-                    kwargs["NextToken"] = next_token
-                response = athena.list_query_executions(**kwargs)
-                exec_ids = response.get("QueryExecutionIds", [])
-                if exec_ids:
-                    batch = athena.batch_get_query_execution(QueryExecutionIds=exec_ids)
-                    for qe in batch.get("QueryExecutions", []):
-                        if qe.get("Status", {}).get("State") == "QUEUED":
-                            return True
-                next_token = response.get("NextToken")
-                if not next_token:
-                    break
-        return False
-    except ClientError as e:
-        logger.warning("Athena API error checking queued queries: %s", e)
-        return None
 
 
 def _get_dpu_metrics(
@@ -204,8 +167,9 @@ def _check_and_scale(
     """Check utilization and scale if thresholds are crossed.
 
     Returns ScaleCheckResult(last_scale_time, queued_ticks, low_ticks, high_ticks) where:
-    - queued_ticks counts consecutive ticks with QUEUED Athena queries detected.
-      Used as an accelerated scale-out trigger after cfg.min_queued_ticks consecutive ticks.
+    - queued_ticks counts consecutive ticks with utilization >= 100% (all DPUs consumed,
+      new queries likely queued). Used as an accelerated scale-out trigger after
+      cfg.min_queued_ticks consecutive ticks.
     - low_ticks counts consecutive ticks with utilization <= cfg.scale_in_threshold.
       Scale-in triggers only after cfg.min_low_ticks consecutive ticks.
     - high_ticks counts consecutive ticks with utilization >= cfg.scale_out_threshold.
@@ -213,8 +177,8 @@ def _check_and_scale(
 
     Scale-out has two paths:
     - Sustained path: utilization >= threshold for cfg.min_high_ticks consecutive ticks.
-    - Accelerated path (workgroup_names only): QUEUED queries for cfg.min_queued_ticks
-      consecutive ticks, bypassing the high_ticks requirement.
+    - Accelerated path: utilization >= 100% for cfg.min_queued_ticks consecutive ticks,
+      bypassing the high_ticks requirement.
     """
     lookback = max(180, cfg.monitor_interval_seconds * 3)
     metrics = _get_dpu_metrics(cfg.reservation_name, lookback_seconds=lookback, cw_client=cw_client)
@@ -249,25 +213,19 @@ def _check_and_scale(
             cfg.min_high_ticks,
         )
 
-        # Accelerated path: check queued queries when workgroup_names is configured.
-        if cfg.workgroup_names:
-            has_queued = _has_queued_queries(cfg.workgroup_names, athena_client=athena_client)
-            if has_queued is None:
-                logger.warning(
-                    "Could not determine queued query status, suppressing scale-out as a precaution",
-                )
-                # Utilization is confirmed high (high_ticks preserved) but queue status
-                # is uncertain (queued_ticks reset to avoid false accelerated path).
-                return ScaleCheckResult(last_scale_time, 0, 0, new_high_ticks)
-            if has_queued:
-                new_queued_ticks = queued_ticks + 1
-                logger.info(
-                    "Queued queries detected (consecutive ticks: %d/%d)",
-                    new_queued_ticks,
-                    cfg.min_queued_ticks,
-                )
-            else:
-                logger.info("No queued queries detected")
+        # Accelerated path: infer queued queries from utilization >= 100%.
+        # When consumed DPUs equal allocated DPUs, new queries are likely queued.
+        # This replaces the previous Athena API-based check which caused
+        # ThrottlingException due to exhaustive ListQueryExecutions pagination.
+        if utilization >= 100.0:
+            new_queued_ticks = queued_ticks + 1
+            logger.info(
+                "Queued queries likely (utilization >= 100%%, consecutive ticks: %d/%d)",
+                new_queued_ticks,
+                cfg.min_queued_ticks,
+            )
+        else:
+            logger.info("No queued queries (utilization < 100%%)")
 
         # Either path met → scale out; otherwise defer.
         sustained = new_high_ticks >= cfg.min_high_ticks
@@ -299,23 +257,8 @@ def _check_and_scale(
                 cfg.min_low_ticks,
             )
             return ScaleCheckResult(last_scale_time, 0, new_low_ticks, 0)
-        if cfg.workgroup_names:
-            # Scale-in queued check is deferred until the tick threshold is achieved:
-            # checking on every tick during the deferral period would be wasteful since
-            # scale-in won't fire anyway, and the queued status is only relevant at the
-            # decision point (scale-out side checks eagerly because sustained queue growth
-            # is a stronger signal that needs tracking across ticks).
-            has_queued = _has_queued_queries(cfg.workgroup_names, athena_client=athena_client)
-            if has_queued is None:
-                logger.warning(
-                    "Could not determine queued query status, suppressing scale-in as a precaution",
-                )
-                return ScaleCheckResult(last_scale_time, 0, new_low_ticks, 0)
-            if has_queued:
-                logger.warning(
-                    "Scale-in suppressed: queued queries detected despite low utilization",
-                )
-                return ScaleCheckResult(last_scale_time, 0, new_low_ticks, 0)
+        # No queued query check needed: utilization <= scale_in_threshold
+        # implies consumed < allocated, so no queries are waiting for DPUs.
         dpu_delta = -cfg.scale_step_dpus
     else:
         logger.debug("Utilization within thresholds, skipping scale check")
@@ -402,10 +345,7 @@ def _run_monitor_loop(cfg: _MonitorConfig, stop_event: threading.Event | None = 
         signal.signal(signal.SIGINT, _handle_signal)
 
     scale_out_parts = [f"utilization × {cfg.min_high_ticks} ticks"]
-    if cfg.workgroup_names:
-        scale_out_parts.append(
-            f"queued queries × {cfg.min_queued_ticks} ticks (workgroups: {cfg.workgroup_names})"
-        )
+    scale_out_parts.append(f"queued (utilization >= 100%%) × {cfg.min_queued_ticks} ticks")
     scale_out_gate = ", scale-out gate: " + ", ".join(scale_out_parts)
     logger.info(
         "Capacity monitor started for '%s' "
