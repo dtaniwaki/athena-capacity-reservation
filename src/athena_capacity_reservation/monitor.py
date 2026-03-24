@@ -43,14 +43,14 @@ class _MonitorConfig:
     reservation_name: str
     min_dpus: int
     max_dpus: int
-    scale_out_threshold: float = 80.0
-    scale_in_threshold: float = 30.0
+    scale_out_threshold: float = 70.0
+    scale_in_threshold: float = 50.0
     scale_step_dpus: int = 8
     monitor_interval_seconds: int = 60
-    cooldown_seconds: int = 300
+    cooldown_seconds: int = 180
     workgroup_names: list[str] = field(default_factory=list)
     min_queued_ticks: int = 2
-    min_high_ticks: int = 5
+    min_high_ticks: int = 3
     min_low_ticks: int = 2
     slack_token: str | None = None
     slack_channel: str | None = None

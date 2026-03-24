@@ -279,7 +279,7 @@ def test_check_and_scale_in_cooldown_preserves_ticks() -> None:
 def test_check_and_scale_below_thresholds_returns_unchanged() -> None:
     last = 0.0
     with (
-        patch("athena_capacity_reservation.monitor._get_dpu_metrics", return_value=(50.0, 4.0)),
+        patch("athena_capacity_reservation.monitor._get_dpu_metrics", return_value=(60.0, 4.0)),
         patch("athena_capacity_reservation.monitor._scale_capacity_reservation") as mock_scale,
     ):
         result = _check_and_scale(_cfg(min_dpus=4), last)
