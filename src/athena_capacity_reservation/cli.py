@@ -7,7 +7,7 @@ import sys
 from collections.abc import Callable
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict, cast
 
 import click
 
@@ -21,6 +21,12 @@ from athena_capacity_reservation.commands import (
     cmd_stop,
 )
 from athena_capacity_reservation.settings import Settings
+
+
+class CliContext(TypedDict):
+    """Typed context object passed through Click's ctx.obj."""
+
+    log_level: str
 
 
 class SuggestGroup(click.Group):
@@ -250,7 +256,8 @@ def _setup_logging(log_file: Path | None = None, log_level: str = "INFO") -> Non
 def main(ctx: click.Context, log_level: str) -> None:
     """Manage Athena Capacity Reservation and autoscale monitor."""
     ctx.ensure_object(dict)
-    ctx.obj["log_level"] = log_level
+    obj: CliContext = ctx.obj
+    obj["log_level"] = log_level
     _setup_logging(log_level=log_level)
 
 
@@ -298,7 +305,7 @@ def monitor_start(ctx: click.Context, /, **kwargs: Any) -> None:
         )
 
     if log_file:
-        _setup_logging(log_file, log_level=ctx.obj["log_level"])
+        _setup_logging(log_file, log_level=cast(CliContext, ctx.obj)["log_level"])
 
     settings = _build_settings(kwargs)
     cmd_monitor_start(settings, daemon=daemon, log_file=log_file)
@@ -338,7 +345,7 @@ def start(ctx: click.Context, /, **kwargs: Any) -> None:
         )
 
     if log_file:
-        _setup_logging(log_file, log_level=ctx.obj["log_level"])
+        _setup_logging(log_file, log_level=cast(CliContext, ctx.obj)["log_level"])
 
     settings = _build_settings(kwargs)
     cmd_start(settings, daemon=daemon, log_file=log_file)

@@ -26,6 +26,21 @@ from athena_capacity_reservation.slack import post_slack_message
 logger = logging.getLogger(__name__)
 
 
+class DpuMetrics(NamedTuple):
+    """DPU utilization and allocation from CloudWatch."""
+
+    utilization_percent: float
+    allocated_dpus: float
+
+
+class ScaleResult(NamedTuple):
+    """Return value of _scale_capacity_reservation."""
+
+    action: Literal["scaled", "skipped"]
+    from_dpus: int
+    to_dpus: int
+
+
 class ScaleCheckResult(NamedTuple):
     """Return value of _check_and_scale."""
 
@@ -62,7 +77,7 @@ def _get_dpu_metrics(
     lookback_seconds: int = 300,
     *,
     cw_client: CloudWatchClient | None = None,
-) -> tuple[float, float] | None:
+) -> DpuMetrics | None:
     """Return (utilization_percent, allocated_dpus) from CloudWatch, or None if no data.
 
     Queries DPUConsumed and DPUAllocated separately (no metric math) and computes
@@ -124,7 +139,7 @@ def _get_dpu_metrics(
         allocated = allocated_values[0]
         consumed = consumed_values[0]
         utilization = (consumed / allocated * 100) if allocated > 0 else 0.0
-        return utilization, allocated
+        return DpuMetrics(utilization, allocated)
     except ClientError as e:
         logger.warning("CloudWatch API error getting DPU metrics: %s", e)
         return None
@@ -137,10 +152,10 @@ def _scale_capacity_reservation(
     max_dpus: int,
     *,
     athena_client: AthenaClient | None = None,
-) -> tuple[Literal["scaled", "skipped"], int, int]:
+) -> ScaleResult:
     """Scale an Athena Capacity Reservation by dpu_delta DPUs, clamped to [min_dpus, max_dpus].
 
-    Returns (action, from_dpus, to_dpus) where action is "scaled" or "skipped".
+    Returns ScaleResult(action, from_dpus, to_dpus) where action is "scaled" or "skipped".
     Raises ClientError on AWS API failure.
     """
     athena = athena_client or boto3.client("athena")
@@ -149,12 +164,12 @@ def _scale_capacity_reservation(
     current_dpus = int(response["CapacityReservation"]["TargetDpus"])
     if status == "UPDATE_PENDING":
         logger.warning("Reservation '%s' is UPDATE_PENDING, skipping scale", reservation_name)
-        return "skipped", current_dpus, current_dpus
+        return ScaleResult("skipped", current_dpus, current_dpus)
     target_dpus = max(min_dpus, min(max_dpus, current_dpus + dpu_delta))
     if target_dpus == current_dpus:
-        return "skipped", current_dpus, current_dpus
+        return ScaleResult("skipped", current_dpus, current_dpus)
     athena.update_capacity_reservation(Name=reservation_name, TargetDpus=target_dpus)
-    return "scaled", current_dpus, target_dpus
+    return ScaleResult("scaled", current_dpus, target_dpus)
 
 
 def _check_and_scale(
