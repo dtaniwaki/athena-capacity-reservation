@@ -22,13 +22,21 @@ from athena_capacity_reservation.monitor import (
 # ---------------------------------------------------------------------------
 
 
-def _make_cw_response(utilization_values: list, allocated_values: list) -> dict:  # type: ignore[type-arg]
-    return {
-        "MetricDataResults": [
-            {"Id": "utilization", "Values": utilization_values},
-            {"Id": "allocated", "Values": allocated_values},
-        ]
-    }
+def _make_cw_response(
+    utilization_values: list,  # type: ignore[type-arg]
+    allocated_values: list,  # type: ignore[type-arg]
+    consumed_values: list | None = None,  # type: ignore[type-arg]
+) -> dict:  # type: ignore[type-arg]
+    results: list[dict] = [  # type: ignore[type-arg]
+        {"Id": "utilization", "Values": utilization_values},
+        {"Id": "allocated", "Values": allocated_values},
+    ]
+    # Default: derive consumed values from utilization and allocated so the
+    # "consumed data present" check in _get_dpu_metrics passes.
+    if consumed_values is None and allocated_values:
+        consumed_values = [u / 100.0 * a for u, a in zip(utilization_values, allocated_values)]
+    results.append({"Id": "consumed", "Values": consumed_values or []})
+    return {"MetricDataResults": results}
 
 
 def test_get_dpu_metrics_returns_utilization_and_allocated() -> None:
@@ -79,6 +87,18 @@ def test_get_dpu_metrics_returns_none_on_cloudwatch_error(capsys: pytest.Capture
     assert result is None
     captured = capsys.readouterr()
     assert "CloudWatch API error" in captured.err
+
+
+def test_get_dpu_metrics_returns_none_when_consumed_data_missing(capsys: pytest.CaptureFixture) -> None:  # type: ignore[type-arg]
+    with patch("athena_capacity_reservation.monitor.boto3") as mock_boto3:
+        mock_cw = MagicMock()
+        mock_boto3.client.return_value = mock_cw
+        mock_cw.get_metric_data.return_value = _make_cw_response([0.0], [8.0], consumed_values=[])
+
+        result = _get_dpu_metrics("my-reservation")
+
+    assert result is None
+    assert "DPUConsumed metric has no data points" in capsys.readouterr().err
 
 
 def test_get_dpu_metrics_returns_none_when_results_empty(capsys: pytest.CaptureFixture) -> None:  # type: ignore[type-arg]

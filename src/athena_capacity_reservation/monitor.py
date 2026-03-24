@@ -106,7 +106,7 @@ def _get_dpu_metrics(
                         "Period": 60,
                         "Stat": "Average",
                     },
-                    "ReturnData": False,
+                    "ReturnData": True,
                 },
             ],
             StartTime=now - timedelta(seconds=lookback_seconds),
@@ -116,9 +116,20 @@ def _get_dpu_metrics(
         results = {r["Id"]: r for r in response.get("MetricDataResults", [])}
         utilization_values = results.get("utilization", {}).get("Values", [])
         allocated_values = results.get("allocated", {}).get("Values", [])
+        consumed_values = results.get("consumed", {}).get("Values", [])
         if not utilization_values or not allocated_values:
             logger.warning(
                 "No DPU metrics data in CloudWatch window (possible metric ingestion lag)",
+            )
+            return None
+        # CloudWatch metric math treats missing consumed data as 0, producing
+        # a false 0% utilization while long-running queries are in progress
+        # (DPUConsumed is backfilled after query completion). Check for actual
+        # consumed data points to avoid false scale-in triggers.
+        if not consumed_values:
+            logger.warning(
+                "DPUConsumed metric has no data points (likely backfilled after query completion), "
+                "skipping unreliable utilization reading",
             )
             return None
         return utilization_values[0], allocated_values[0]
