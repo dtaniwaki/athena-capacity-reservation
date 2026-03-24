@@ -67,7 +67,7 @@ class Settings(BaseSettings):
             return v
         if isinstance(v, str):
             return ConsumedStat(v.lower())
-        return v
+        raise TypeError(f"Expected str or ConsumedStat, got {type(v)}")
 
     @field_validator("reservation_name", mode="before")
     @classmethod
