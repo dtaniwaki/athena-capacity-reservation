@@ -11,12 +11,6 @@ from typing import Any, TypedDict, cast
 
 import click
 
-
-class CliContext(TypedDict):
-    """Typed context object passed through Click's ctx.obj."""
-
-    log_level: str
-
 from athena_capacity_reservation.commands import (
     MonitorStopError,
     cmd_activate,
@@ -27,6 +21,12 @@ from athena_capacity_reservation.commands import (
     cmd_stop,
 )
 from athena_capacity_reservation.settings import Settings
+
+
+class CliContext(TypedDict):
+    """Typed context object passed through Click's ctx.obj."""
+
+    log_level: str
 
 
 class SuggestGroup(click.Group):
