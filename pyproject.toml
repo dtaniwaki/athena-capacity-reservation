@@ -10,7 +10,7 @@ readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.11"
 dependencies = [
-    "boto3>=1.26",
+    "boto3>=1.36.76",
     "click>=8.0",
     "pydantic-settings>=2.0",
 ]
