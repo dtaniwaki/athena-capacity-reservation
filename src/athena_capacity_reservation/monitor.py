@@ -59,29 +59,25 @@ class _MonitorConfig:
 
 def _get_dpu_metrics(
     reservation_name: str,
-    lookback_seconds: int = 180,
+    lookback_seconds: int = 300,
     *,
     cw_client: CloudWatchClient | None = None,
 ) -> tuple[float, float] | None:
     """Return (utilization_percent, allocated_dpus) from CloudWatch, or None if no data.
 
-    lookback_seconds controls the CloudWatch query window size. Defaults to 180s (3 min)
-    which covers 3 data points at the default 60s monitor interval. Callers with longer
-    intervals should pass a proportionally larger window.
+    Queries DPUConsumed and DPUAllocated separately (no metric math) and computes
+    utilization in Python.  This avoids CloudWatch metric math treating missing
+    consumed data as 0, which would produce false 0% readings when DPUConsumed
+    has a publishing delay of 1-2 minutes.
 
-    allocated_dpus is currently used only for logging (to show reserved capacity alongside
-    utilization), not for scaling decisions.
+    lookback_seconds defaults to 300s (5 min) to tolerate CloudWatch publishing
+    delays.  The most recent data point for each metric is used.
     """
     try:
         cw = cw_client or boto3.client("cloudwatch")
         now = datetime.now(UTC)
         response = cw.get_metric_data(
             MetricDataQueries=[
-                {
-                    "Id": "utilization",
-                    "Expression": "IF(allocated > 0, consumed / allocated * 100, 0)",
-                    "Label": "DPU Utilization %",
-                },
                 {
                     "Id": "allocated",
                     "MetricStat": {
@@ -114,25 +110,21 @@ def _get_dpu_metrics(
             ScanBy="TimestampDescending",
         )
         results = {r["Id"]: r for r in response.get("MetricDataResults", [])}
-        utilization_values = results.get("utilization", {}).get("Values", [])
         allocated_values = results.get("allocated", {}).get("Values", [])
         consumed_values = results.get("consumed", {}).get("Values", [])
-        if not utilization_values or not allocated_values:
-            logger.warning(
-                "No DPU metrics data in CloudWatch window (possible metric ingestion lag)",
-            )
+        if not allocated_values:
+            logger.warning("No DPUAllocated data in CloudWatch window (possible metric ingestion lag)")
             return None
-        # CloudWatch metric math treats missing consumed data as 0, producing
-        # a false 0% utilization while long-running queries are in progress
-        # (DPUConsumed is backfilled after query completion). Check for actual
-        # consumed data points to avoid false scale-in triggers.
         if not consumed_values:
             logger.warning(
-                "DPUConsumed metric has no data points (likely backfilled after query completion), "
-                "skipping unreliable utilization reading",
+                "No DPUConsumed data in CloudWatch window (possible publishing delay), "
+                "skipping scaling decision",
             )
             return None
-        return utilization_values[0], allocated_values[0]
+        allocated = allocated_values[0]
+        consumed = consumed_values[0]
+        utilization = (consumed / allocated * 100) if allocated > 0 else 0.0
+        return utilization, allocated
     except ClientError as e:
         logger.warning("CloudWatch API error getting DPU metrics: %s", e)
         return None
@@ -191,7 +183,7 @@ def _check_and_scale(
     - Accelerated path: utilization >= 100% for cfg.min_queued_ticks consecutive ticks,
       bypassing the high_ticks requirement.
     """
-    lookback = max(180, cfg.monitor_interval_seconds * 3)
+    lookback = max(300, cfg.monitor_interval_seconds * 5)
     metrics = _get_dpu_metrics(cfg.reservation_name, lookback_seconds=lookback, cw_client=cw_client)
     if metrics is None:
         logger.debug("No DPU metrics data available yet, skipping")

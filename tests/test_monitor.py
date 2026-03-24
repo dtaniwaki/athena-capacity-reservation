@@ -23,30 +23,26 @@ from athena_capacity_reservation.monitor import (
 
 
 def _make_cw_response(
-    utilization_values: list,  # type: ignore[type-arg]
     allocated_values: list,  # type: ignore[type-arg]
-    consumed_values: list | None = None,  # type: ignore[type-arg]
+    consumed_values: list,  # type: ignore[type-arg]
 ) -> dict:  # type: ignore[type-arg]
-    results: list[dict] = [  # type: ignore[type-arg]
-        {"Id": "utilization", "Values": utilization_values},
-        {"Id": "allocated", "Values": allocated_values},
-    ]
-    # Default: derive consumed values from utilization and allocated so the
-    # "consumed data present" check in _get_dpu_metrics passes.
-    if consumed_values is None and allocated_values:
-        consumed_values = [u / 100.0 * a for u, a in zip(utilization_values, allocated_values)]
-    results.append({"Id": "consumed", "Values": consumed_values or []})
-    return {"MetricDataResults": results}
+    return {
+        "MetricDataResults": [
+            {"Id": "allocated", "Values": allocated_values},
+            {"Id": "consumed", "Values": consumed_values},
+        ]
+    }
 
 
 def test_get_dpu_metrics_returns_utilization_and_allocated() -> None:
     with patch("athena_capacity_reservation.monitor.boto3") as mock_boto3:
         mock_cw = MagicMock()
         mock_boto3.client.return_value = mock_cw
-        mock_cw.get_metric_data.return_value = _make_cw_response([75.0], [8.0])
+        mock_cw.get_metric_data.return_value = _make_cw_response([8.0], [6.0])
 
         result = _get_dpu_metrics("my-reservation")
 
+    assert result is not None
     assert result == (75.0, 8.0)
 
 
@@ -65,11 +61,14 @@ def test_get_dpu_metrics_uses_most_recent_value() -> None:
     with patch("athena_capacity_reservation.monitor.boto3") as mock_boto3:
         mock_cw = MagicMock()
         mock_boto3.client.return_value = mock_cw
-        mock_cw.get_metric_data.return_value = _make_cw_response([90.0, 50.0], [8.0, 4.0])
+        # allocated=[8, 4], consumed=[7.2, 2.0] → utilization=7.2/8*100=90%, allocated=8
+        mock_cw.get_metric_data.return_value = _make_cw_response([8.0, 4.0], [7.2, 2.0])
 
         result = _get_dpu_metrics("my-reservation")
 
-    assert result == (90.0, 8.0)
+    assert result is not None
+    assert result[0] == pytest.approx(90.0)
+    assert result[1] == 8.0
 
 
 def test_get_dpu_metrics_returns_none_on_cloudwatch_error(capsys: pytest.CaptureFixture) -> None:  # type: ignore[type-arg]
@@ -93,12 +92,12 @@ def test_get_dpu_metrics_returns_none_when_consumed_data_missing(capsys: pytest.
     with patch("athena_capacity_reservation.monitor.boto3") as mock_boto3:
         mock_cw = MagicMock()
         mock_boto3.client.return_value = mock_cw
-        mock_cw.get_metric_data.return_value = _make_cw_response([0.0], [8.0], consumed_values=[])
+        mock_cw.get_metric_data.return_value = _make_cw_response([8.0], [])
 
         result = _get_dpu_metrics("my-reservation")
 
     assert result is None
-    assert "DPUConsumed metric has no data points" in capsys.readouterr().err
+    assert "No DPUConsumed data" in capsys.readouterr().err
 
 
 def test_get_dpu_metrics_returns_none_when_results_empty(capsys: pytest.CaptureFixture) -> None:  # type: ignore[type-arg]
