@@ -14,87 +14,8 @@ from athena_capacity_reservation.monitor import (
     _check_and_scale,
     _daemonize,
     _get_dpu_metrics,
-    _has_queued_queries,
     _scale_capacity_reservation,
 )
-
-# ---------------------------------------------------------------------------
-# _has_queued_queries
-# ---------------------------------------------------------------------------
-
-
-def test_has_queued_queries_returns_true_when_queued() -> None:
-    mock_athena = MagicMock()
-    mock_athena.list_query_executions.return_value = {"QueryExecutionIds": ["id1", "id2", "id3"]}
-    mock_athena.batch_get_query_execution.return_value = {
-        "QueryExecutions": [
-            {"Status": {"State": "QUEUED"}},
-            {"Status": {"State": "RUNNING"}},
-            {"Status": {"State": "QUEUED"}},
-        ]
-    }
-    with patch("athena_capacity_reservation.monitor.boto3") as mock_boto3:
-        mock_boto3.client.return_value = mock_athena
-        result = _has_queued_queries(["my-workgroup"])
-
-    assert result is True
-
-
-def test_has_queued_queries_early_return_on_first_queued() -> None:
-    mock_athena = MagicMock()
-    mock_athena.list_query_executions.side_effect = [
-        {"QueryExecutionIds": ["id1"]},
-        {"QueryExecutionIds": ["id2"]},
-    ]
-    mock_athena.batch_get_query_execution.side_effect = [
-        {"QueryExecutions": [{"Status": {"State": "QUEUED"}}]},
-        {"QueryExecutions": [{"Status": {"State": "QUEUED"}}]},
-    ]
-    with patch("athena_capacity_reservation.monitor.boto3") as mock_boto3:
-        mock_boto3.client.return_value = mock_athena
-        result = _has_queued_queries(["wg1", "wg2"])
-
-    assert result is True
-    assert mock_athena.list_query_executions.call_count == 1
-
-
-def test_has_queued_queries_returns_false_when_no_queued() -> None:
-    mock_athena = MagicMock()
-    mock_athena.list_query_executions.return_value = {"QueryExecutionIds": ["id1"]}
-    mock_athena.batch_get_query_execution.return_value = {"QueryExecutions": [{"Status": {"State": "RUNNING"}}]}
-    with patch("athena_capacity_reservation.monitor.boto3") as mock_boto3:
-        mock_boto3.client.return_value = mock_athena
-        result = _has_queued_queries(["my-workgroup"])
-
-    assert result is False
-
-
-def test_has_queued_queries_returns_false_when_no_executions() -> None:
-    mock_athena = MagicMock()
-    mock_athena.list_query_executions.return_value = {"QueryExecutionIds": []}
-    with patch("athena_capacity_reservation.monitor.boto3") as mock_boto3:
-        mock_boto3.client.return_value = mock_athena
-        result = _has_queued_queries(["my-workgroup"])
-
-    assert result is False
-    mock_athena.batch_get_query_execution.assert_not_called()
-
-
-def test_has_queued_queries_returns_none_on_api_error(capsys: pytest.CaptureFixture) -> None:  # type: ignore[type-arg]
-    from botocore.exceptions import ClientError
-
-    mock_athena = MagicMock()
-    mock_athena.list_query_executions.side_effect = ClientError(
-        {"Error": {"Code": "AccessDenied", "Message": "Access denied"}}, "ListQueryExecutions"
-    )
-    with patch("athena_capacity_reservation.monitor.boto3") as mock_boto3:
-        mock_boto3.client.return_value = mock_athena
-        result = _has_queued_queries(["my-workgroup"])
-
-    assert result is None
-    captured = capsys.readouterr()
-    assert "Athena API error" in captured.err
-
 
 # ---------------------------------------------------------------------------
 # _get_dpu_metrics
@@ -291,17 +212,16 @@ def test_check_and_scale_below_thresholds_returns_unchanged() -> None:
 # --- Scale-out gate tests ---
 
 
-def test_check_and_scale_scale_out_deferred_when_no_queued_queries(
+def test_check_and_scale_scale_out_deferred_utilization_below_100(
     capsys: pytest.CaptureFixture,  # type: ignore[type-arg]
 ) -> None:
     last = 0.0
     with (
-        patch("athena_capacity_reservation.monitor._get_dpu_metrics", return_value=(100.0, 4.0)),
-        patch("athena_capacity_reservation.monitor._has_queued_queries", return_value=False),
+        patch("athena_capacity_reservation.monitor._get_dpu_metrics", return_value=(90.0, 4.0)),
         patch("athena_capacity_reservation.monitor._scale_capacity_reservation") as mock_scale,
     ):
         result = _check_and_scale(
-            _cfg(min_dpus=4, workgroup_names=["wg"]),
+            _cfg(min_dpus=4),
             last,
         )
 
@@ -314,11 +234,10 @@ def test_check_and_scale_scale_out_deferred_on_first_queued_tick(capsys: pytest.
     last = 0.0
     with (
         patch("athena_capacity_reservation.monitor._get_dpu_metrics", return_value=(100.0, 4.0)),
-        patch("athena_capacity_reservation.monitor._has_queued_queries", return_value=True),
         patch("athena_capacity_reservation.monitor._scale_capacity_reservation") as mock_scale,
     ):
         result = _check_and_scale(
-            _cfg(min_dpus=4, workgroup_names=["wg"], min_queued_ticks=2),
+            _cfg(min_dpus=4, min_queued_ticks=2),
             last,
             queued_ticks=0,
         )
@@ -328,58 +247,22 @@ def test_check_and_scale_scale_out_deferred_on_first_queued_tick(capsys: pytest.
     assert "Scale-out deferred" in capsys.readouterr().err
 
 
-def test_check_and_scale_scale_out_allowed_when_queries_are_queued() -> None:
+def test_check_and_scale_scale_out_allowed_when_utilization_at_100() -> None:
     last = 0.0
     with (
         patch("athena_capacity_reservation.monitor._get_dpu_metrics", return_value=(100.0, 4.0)),
-        patch("athena_capacity_reservation.monitor._has_queued_queries", return_value=True),
         patch("athena_capacity_reservation.monitor._scale_capacity_reservation", return_value=("scaled", 4, 12)),
         patch("athena_capacity_reservation.monitor.post_slack_message"),
         patch("athena_capacity_reservation.monitor.time") as mock_time,
     ):
         mock_time.time.return_value = 1001.0
         result = _check_and_scale(
-            _cfg(min_dpus=4, workgroup_names=["wg"], min_queued_ticks=2),
+            _cfg(min_dpus=4, min_queued_ticks=2),
             last,
             queued_ticks=1,
         )
 
     assert result == (1001.0, 0, 0, 0)
-
-
-def test_check_and_scale_scale_out_no_gate_without_workgroup_names() -> None:
-    last = 0.0
-    with (
-        patch("athena_capacity_reservation.monitor._get_dpu_metrics", return_value=(90.0, 4.0)),
-        patch("athena_capacity_reservation.monitor._has_queued_queries") as mock_has_queued,
-        patch("athena_capacity_reservation.monitor._scale_capacity_reservation", return_value=("scaled", 4, 12)),
-        patch("athena_capacity_reservation.monitor.post_slack_message"),
-        patch("athena_capacity_reservation.monitor.time") as mock_time,
-    ):
-        mock_time.time.return_value = 1001.0
-        result = _check_and_scale(_cfg(min_dpus=4, min_high_ticks=1), last)
-
-    mock_has_queued.assert_not_called()
-    assert result == (1001.0, 0, 0, 0)
-
-
-def test_check_and_scale_scale_out_suppressed_when_queued_count_api_error(
-    capsys: pytest.CaptureFixture,  # type: ignore[type-arg]
-) -> None:
-    last = 0.0
-    with (
-        patch("athena_capacity_reservation.monitor._get_dpu_metrics", return_value=(90.0, 4.0)),
-        patch("athena_capacity_reservation.monitor._has_queued_queries", return_value=None),
-        patch("athena_capacity_reservation.monitor._scale_capacity_reservation") as mock_scale,
-    ):
-        result = _check_and_scale(
-            _cfg(min_dpus=4, workgroup_names=["wg"]),
-            last,
-        )
-
-    assert result == (last, 0, 0, 1)
-    mock_scale.assert_not_called()
-    assert "Could not determine queued query status" in capsys.readouterr().err
 
 
 # --- Scale-out / scale-in trigger tests ---
@@ -423,44 +306,6 @@ def test_check_and_scale_scale_in_deferred_on_first_low_tick(capsys: pytest.Capt
     assert "Scale-in deferred" in capsys.readouterr().err
 
 
-def test_check_and_scale_scale_in_suppressed_when_queued_queries(capsys: pytest.CaptureFixture) -> None:  # type: ignore[type-arg]
-    last = 0.0
-    with (
-        patch("athena_capacity_reservation.monitor._get_dpu_metrics", return_value=(20.0, 36.0)),
-        patch("athena_capacity_reservation.monitor._has_queued_queries", return_value=True),
-        patch("athena_capacity_reservation.monitor._scale_capacity_reservation") as mock_scale,
-    ):
-        result = _check_and_scale(
-            _cfg(workgroup_names=["wg"], min_low_ticks=2),
-            last,
-            low_ticks=1,
-        )
-
-    assert result == (last, 0, 2, 0)
-    mock_scale.assert_not_called()
-    assert "Scale-in suppressed" in capsys.readouterr().err
-
-
-def test_check_and_scale_scale_in_suppressed_when_queued_count_api_error(
-    capsys: pytest.CaptureFixture,  # type: ignore[type-arg]
-) -> None:
-    last = 0.0
-    with (
-        patch("athena_capacity_reservation.monitor._get_dpu_metrics", return_value=(20.0, 36.0)),
-        patch("athena_capacity_reservation.monitor._has_queued_queries", return_value=None),
-        patch("athena_capacity_reservation.monitor._scale_capacity_reservation") as mock_scale,
-    ):
-        result = _check_and_scale(
-            _cfg(workgroup_names=["wg"], min_low_ticks=2),
-            last,
-            low_ticks=1,
-        )
-
-    assert result == (last, 0, 2, 0)
-    mock_scale.assert_not_called()
-    assert "Could not determine queued query status" in capsys.readouterr().err
-
-
 def test_check_and_scale_scale_in_calls_athena_directly() -> None:
     last = 0.0
     with (
@@ -490,12 +335,11 @@ def test_check_and_scale_scale_in_calls_athena_directly() -> None:
 def test_check_and_scale_high_utilization_resets_low_ticks() -> None:
     last = 0.0
     with (
-        patch("athena_capacity_reservation.monitor._get_dpu_metrics", return_value=(100.0, 4.0)),
-        patch("athena_capacity_reservation.monitor._has_queued_queries", return_value=False),
+        patch("athena_capacity_reservation.monitor._get_dpu_metrics", return_value=(90.0, 4.0)),
         patch("athena_capacity_reservation.monitor._scale_capacity_reservation"),
     ):
         result = _check_and_scale(
-            _cfg(min_dpus=4, workgroup_names=["wg"]),
+            _cfg(min_dpus=4),
             last,
             low_ticks=3,
         )
@@ -601,11 +445,10 @@ def test_check_and_scale_sustained_high_utilization_triggers_scale_out() -> None
     mock_scale.assert_called_once()
 
 
-def test_check_and_scale_sustained_high_utilization_with_workgroups_no_queued() -> None:
+def test_check_and_scale_sustained_high_utilization_below_100_no_queued_ticks() -> None:
     last = 0.0
     with (
         patch("athena_capacity_reservation.monitor._get_dpu_metrics", return_value=(90.0, 24.0)),
-        patch("athena_capacity_reservation.monitor._has_queued_queries", return_value=False),
         patch(
             "athena_capacity_reservation.monitor._scale_capacity_reservation", return_value=("scaled", 24, 32)
         ) as mock_scale,
@@ -614,7 +457,7 @@ def test_check_and_scale_sustained_high_utilization_with_workgroups_no_queued() 
     ):
         mock_time.time.return_value = 1001.0
         result = _check_and_scale(
-            _cfg(workgroup_names=["wg"], min_high_ticks=5),
+            _cfg(min_high_ticks=5),
             last,
             high_ticks=4,
         )
@@ -640,11 +483,10 @@ def test_check_and_scale_high_ticks_deferred_without_workgroups(capsys: pytest.C
     assert "Scale-out deferred" in capsys.readouterr().err
 
 
-def test_check_and_scale_sustained_path_with_workgroups_and_queued() -> None:
+def test_check_and_scale_sustained_path_triggers_before_accelerated() -> None:
     last = 0.0
     with (
         patch("athena_capacity_reservation.monitor._get_dpu_metrics", return_value=(90.0, 24.0)),
-        patch("athena_capacity_reservation.monitor._has_queued_queries", return_value=True),
         patch(
             "athena_capacity_reservation.monitor._scale_capacity_reservation", return_value=("scaled", 24, 32)
         ) as mock_scale,
@@ -653,7 +495,7 @@ def test_check_and_scale_sustained_path_with_workgroups_and_queued() -> None:
     ):
         mock_time.time.return_value = 1001.0
         result = _check_and_scale(
-            _cfg(workgroup_names=["wg"], min_queued_ticks=3, min_high_ticks=5),
+            _cfg(min_queued_ticks=3, min_high_ticks=5),
             last,
             queued_ticks=0,
             high_ticks=4,
@@ -661,23 +503,6 @@ def test_check_and_scale_sustained_path_with_workgroups_and_queued() -> None:
 
     assert result == (1001.0, 0, 0, 0)
     mock_scale.assert_called_once()
-
-
-def test_check_and_scale_high_ticks_preserved_on_queued_api_error() -> None:
-    last = 0.0
-    with (
-        patch("athena_capacity_reservation.monitor._get_dpu_metrics", return_value=(90.0, 24.0)),
-        patch("athena_capacity_reservation.monitor._has_queued_queries", return_value=None),
-        patch("athena_capacity_reservation.monitor._scale_capacity_reservation") as mock_scale,
-    ):
-        result = _check_and_scale(
-            _cfg(workgroup_names=["wg"], min_high_ticks=5),
-            last,
-            high_ticks=3,
-        )
-
-    assert result == (last, 0, 0, 4)
-    mock_scale.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
