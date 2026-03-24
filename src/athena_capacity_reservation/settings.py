@@ -12,7 +12,7 @@ from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings
 from pydantic_settings.sources.providers.env import EnvSettingsSource
 
-from athena_capacity_reservation.monitor import _MonitorConfig
+from athena_capacity_reservation.monitor import ConsumedStat, _MonitorConfig
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     queued_ticks_for_scale_out: int = Field(default=2, gt=0)
     high_ticks_for_scale_out: int = Field(default=5, gt=0)
     low_ticks_for_scale_in: int = Field(default=2, gt=0)
+    dpu_consumed_stat: ConsumedStat = ConsumedStat.P90
 
     slack_token: str | None = None
     slack_channel: str | None = None
@@ -58,6 +59,15 @@ class Settings(BaseSettings):
     capacity_pid_file: Path = Field(
         default=Path(tempfile.gettempdir()) / "capacity_monitor.pid",
     )
+
+    @field_validator("dpu_consumed_stat", mode="before")
+    @classmethod
+    def _normalize_dpu_consumed_stat(cls, v: Any) -> ConsumedStat:
+        if isinstance(v, ConsumedStat):
+            return v
+        if isinstance(v, str):
+            return ConsumedStat(v.lower())
+        raise TypeError(f"Expected str or ConsumedStat, got {type(v)}")
 
     @field_validator("reservation_name", mode="before")
     @classmethod
@@ -151,6 +161,7 @@ class Settings(BaseSettings):
             min_queued_ticks=self.queued_ticks_for_scale_out,
             min_high_ticks=self.high_ticks_for_scale_out,
             min_low_ticks=self.low_ticks_for_scale_in,
+            dpu_consumed_stat=self.dpu_consumed_stat,
             slack_token=self.slack_token,
             slack_channel=self.slack_channel,
             slack_thread_ts=self.slack_thread_ts,
