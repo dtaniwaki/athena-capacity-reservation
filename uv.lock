@@ -50,7 +50,7 @@ slack = [
 requires-dist = [
     { name = "athena-capacity-reservation", extras = ["slack"], marker = "extra == 'dev'" },
     { name = "bandit", marker = "extra == 'dev'" },
-    { name = "boto3", specifier = ">=1.26" },
+    { name = "boto3", specifier = ">=1.36.76" },
     { name = "boto3-stubs", extras = ["athena", "cloudwatch", "s3"], marker = "extra == 'dev'" },
     { name = "click", specifier = ">=8.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0" },
