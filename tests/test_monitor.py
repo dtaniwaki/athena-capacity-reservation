@@ -10,7 +10,9 @@ from botocore.exceptions import ClientError
 from helpers import _cfg
 
 from athena_capacity_reservation.monitor import (
+    DpuMetrics,
     ScaleCheckResult,
+    ScaleResult,
     _check_and_scale,
     _daemonize,
     _get_dpu_metrics,
