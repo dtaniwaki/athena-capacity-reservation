@@ -179,9 +179,7 @@ def _scale_capacity_reservation(
     Returns ScaleResult(action, from_dpus, to_dpus) where action is "scaled" or "skipped".
     Raises ClientError on AWS API failure.
     """
-    from botocore.config import Config
-
-    athena = athena_client or boto3.client("athena", config=Config(parameter_validation=False))
+    athena = athena_client or boto3.client("athena")
     response = athena.get_capacity_reservation(Name=reservation_name)
     status = response["CapacityReservation"]["Status"]
     current_dpus = int(response["CapacityReservation"]["TargetDpus"])
@@ -405,9 +403,7 @@ def _run_monitor_loop(cfg: _MonitorConfig, stop_event: threading.Event | None = 
         scale_out_gate,
     )
 
-    from botocore.config import Config
-
-    athena_client = boto3.client("athena", config=Config(parameter_validation=False))
+    athena_client = boto3.client("athena")
     cw_client = boto3.client("cloudwatch")
 
     # Initialize last_scale_time to now to prevent immediate scale-in on startup:
