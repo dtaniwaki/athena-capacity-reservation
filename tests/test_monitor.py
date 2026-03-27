@@ -300,7 +300,7 @@ def test_check_and_scale_scale_out_calls_athena_directly() -> None:
         mock_time.time.return_value = 1001.0
         _check_and_scale(_cfg(min_high_ticks=1), last)
 
-    mock_scale.assert_called_once_with("res", 8, 8, 120, athena_client=None)
+    mock_scale.assert_called_once_with("res", 4, 8, 120, athena_client=None)
     mock_slack.assert_called_once()
     msg_text = mock_slack.call_args[0][0]
     assert "\U0001f4c8" in msg_text
@@ -342,7 +342,7 @@ def test_check_and_scale_scale_in_calls_athena_directly() -> None:
             low_ticks=1,
         )
 
-    mock_scale.assert_called_once_with("res", -8, 8, 120, athena_client=None)
+    mock_scale.assert_called_once_with("res", -4, 8, 120, athena_client=None)
     mock_slack.assert_called_once()
     msg_text = mock_slack.call_args[0][0]
     assert "\U0001f4c9" in msg_text

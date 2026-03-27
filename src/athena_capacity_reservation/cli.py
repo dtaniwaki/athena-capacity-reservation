@@ -127,7 +127,7 @@ def monitor_options(func: Any) -> Any:
     @click.option("--min-dpus", default=None, type=POSITIVE_INT, metavar="N", help="Scale-in lower bound")
     @click.option("--max-dpus", default=None, type=POSITIVE_INT, metavar="N", help="Scale-out upper bound")
     @click.option(
-        "--scale-step-dpus", default=None, type=POSITIVE_INT, metavar="N", help="DPU step per scale event (default: 8)"
+        "--scale-step-dpus", default=None, type=POSITIVE_INT, metavar="N", help="DPU step per scale event (default: 4)"
     )
     @click.option(
         "--scale-out-threshold",

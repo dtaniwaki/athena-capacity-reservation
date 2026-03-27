@@ -78,7 +78,7 @@ class _MonitorConfig:
     max_dpus: int
     scale_out_threshold: float = 80.0
     scale_in_threshold: float = 50.0
-    scale_step_dpus: int = 8
+    scale_step_dpus: int = 4
     monitor_interval_seconds: int = 60
     cooldown_seconds: int = 180
     workgroup_names: list[str] = field(default_factory=list)
