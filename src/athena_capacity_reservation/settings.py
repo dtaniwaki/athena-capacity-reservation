@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     dpus: int | None = Field(default=None, gt=0)
     min_dpus: int | None = Field(default=None, gt=0)
     max_dpus: int | None = Field(default=None, gt=0)
-    scale_step_dpus: int = Field(default=8, gt=0)
+    scale_step_dpus: int = Field(default=4, gt=0)
     scale_out_threshold: float = Field(default=80.0, gt=0, lt=100)
     scale_in_threshold: float = Field(default=30.0, gt=0, lt=100)
     monitor_interval: int = Field(default=60, gt=0)
