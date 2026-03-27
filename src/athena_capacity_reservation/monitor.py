@@ -76,7 +76,7 @@ class _MonitorConfig:
     reservation_name: str
     min_dpus: int
     max_dpus: int
-    scale_out_threshold: float = 70.0
+    scale_out_threshold: float = 80.0
     scale_in_threshold: float = 50.0
     scale_step_dpus: int = 8
     monitor_interval_seconds: int = 60
